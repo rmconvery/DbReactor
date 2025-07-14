@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Scripts\upgrades\20250714\002_SeedUsers.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Scripts\upgrades\20250714\001_CreateUsersTable.sql" />
+    <None Remove="Scripts\upgrades\20250714\003_CreateProductsTable.sql" />
+    <None Remove="Scripts\upgrades\20250714\004_CreateOrdersTable.sql" />
+    <None Remove="Scripts\upgrades\20250714\005_EnvironmentSpecificSettings.sql" />
+  </ItemGroup>
+
+  <!-- Mixed script structure with SQL and code scripts -->
+
+  <ItemGroup>
+    <EmbeddedResource Include="Scripts\downgrades\20250714\001_CreateUsersTable.sql" />
+    <EmbeddedResource Include="Scripts\downgrades\20250714\003_CreateProductsTable.sql" />
+    <EmbeddedResource Include="Scripts\downgrades\20250714\004_CreateOrdersTable.sql" />
+    <EmbeddedResource Include="Scripts\upgrades\20250714\001_CreateUsersTable.sql" />
+    <EmbeddedResource Include="Scripts\upgrades\20250714\003_CreateProductsTable.sql" />
+    <EmbeddedResource Include="Scripts\upgrades\20250714\004_CreateOrdersTable.sql" />
+    <EmbeddedResource Include="Scripts\upgrades\20250714\005_EnvironmentSpecificSettings.sql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Scripts\upgrades\20250714\002_SeedUsers.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DbReactor.MSSqlServer\DbReactor.MSSqlServer.csproj" />
+  </ItemGroup>
+
+</Project>
