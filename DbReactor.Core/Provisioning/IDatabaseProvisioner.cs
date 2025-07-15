@@ -1,26 +1,32 @@
+using System.Threading;
+using System.Threading.Tasks;
+
 namespace DbReactor.Core.Provisioning
 {
     /// <summary>
-    /// Provides database creation and existence checking capabilities
+    /// Provides async-first database creation and existence checking capabilities
     /// </summary>
     public interface IDatabaseProvisioner
     {
         /// <summary>
-        /// Checks if the target database exists
+        /// Asynchronously checks if the target database exists
         /// </summary>
+        /// <param name="cancellationToken">Cancellation token for the operation</param>
         /// <returns>True if database exists, false otherwise</returns>
-        bool DatabaseExists();
+        Task<bool> DatabaseExistsAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Creates the target database
+        /// Asynchronously creates the target database
         /// </summary>
         /// <param name="template">Optional SQL template for database creation. Use {0} as placeholder for database name.</param>
-        void CreateDatabase(string template = null);
+        /// <param name="cancellationToken">Cancellation token for the operation</param>
+        Task CreateDatabaseAsync(string template = null, CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Ensures the target database exists, creating it if necessary
+        /// Asynchronously ensures the target database exists, creating it if necessary
         /// </summary>
         /// <param name="template">Optional SQL template for database creation. Use {0} as placeholder for database name.</param>
-        void EnsureDatabaseExists(string template = null);
+        /// <param name="cancellationToken">Cancellation token for the operation</param>
+        Task EnsureDatabaseExistsAsync(string template = null, CancellationToken cancellationToken = default);
     }
 }

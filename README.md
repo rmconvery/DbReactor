@@ -10,7 +10,7 @@ DbReactor.Core is a powerful, extensible .NET database migration framework that 
 - **Comprehensive Tracking**: Full migration history with execution time and rollback support
 - **Safe Migrations**: Built-in SQL injection protection and transaction management
 - **Flexible Discovery**: Multiple ways to organize and discover migration scripts
-- **Async-First Architecture**: Non-blocking database operations with cancellation tokens and sync wrappers
+- **Async-First Architecture**: Non-blocking database operations with cancellation tokens and sync wrappers (including DatabaseProvisioner)
 - **Robust Error Handling**: Detailed exception hierarchy with contextual information
 - **Production Ready**: Enterprise-grade security and performance optimizations
 
@@ -233,7 +233,7 @@ config.UseSqlServer(connectionString, commandTimeoutSeconds: 60);
 config.UseSqlServerConnection(connectionString)
       .UseSqlServerExecutor(timeoutSeconds: 60)
       .UseSqlServerJournal(schema: "migrations", table: "journal")
-      .UseSqlServerProvisioner(connectionString);
+      .UseSqlServerProvisioner(connectionString); // Async-first database provisioner
 ```
 
 #### Script Discovery Extensions
@@ -276,8 +276,13 @@ config.LogProvider = new CustomLogProvider();
 
 #### Database Management Extensions
 ```csharp
-// Automatic database creation
+// Automatic database creation with async-first provisioner
 config.CreateDatabaseIfNotExists(creationTemplate: "CREATE DATABASE {0}");
+
+// Database provisioner uses async methods internally
+// DatabaseProvisioner.DatabaseExistsAsync()
+// DatabaseProvisioner.CreateDatabaseAsync()
+// DatabaseProvisioner.EnsureDatabaseExistsAsync()
 ```
 
 ### Variable Substitution
@@ -980,6 +985,119 @@ var config = new DbReactorConfiguration()
     .WithPostgreSQL("Host=localhost;Database=myapp;Username=user;Password=pass")
     .WithLogToConsole()
     .WithEmbeddedScripts(typeof(Program).Assembly);
+```
+
+### Custom Database Provisioner
+
+The `IDatabaseProvisioner` interface uses async-first architecture for database creation and management:
+
+```csharp
+using DbReactor.Core.Provisioning;
+
+public class PostgresDatabaseProvisioner : IDatabaseProvisioner
+{
+    private readonly string _connectionString;
+    private readonly ILogProvider _logProvider;
+
+    public PostgresDatabaseProvisioner(string connectionString, ILogProvider logProvider = null)
+    {
+        _connectionString = connectionString;
+        _logProvider = logProvider ?? new NullLogProvider();
+    }
+
+    public async Task<bool> DatabaseExistsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var builder = new NpgsqlConnectionStringBuilder(_connectionString);
+            string databaseName = builder.Database;
+            
+            if (string.IsNullOrEmpty(databaseName))
+            {
+                throw new InvalidOperationException("Connection string must specify a database name");
+            }
+
+            // Connect to postgres database to check if target database exists
+            builder.Database = "postgres";
+            using var connection = new NpgsqlConnection(builder.ConnectionString);
+            await connection.OpenAsync(cancellationToken);
+            
+            using var cmd = new NpgsqlCommand(
+                "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = @dbName)", 
+                connection);
+            cmd.Parameters.AddWithValue("@dbName", databaseName);
+            
+            var result = await cmd.ExecuteScalarAsync(cancellationToken);
+            return (bool)result;
+        }
+        catch (Exception ex)
+        {
+            _logProvider?.WriteError($"Error checking if database exists: {ex.Message}");
+            throw;
+        }
+    }
+
+    public async Task CreateDatabaseAsync(string template = null, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var builder = new NpgsqlConnectionStringBuilder(_connectionString);
+            string databaseName = builder.Database;
+            
+            if (string.IsNullOrEmpty(databaseName))
+            {
+                throw new InvalidOperationException("Connection string must specify a database name");
+            }
+
+            // Connect to postgres database to create target database
+            builder.Database = "postgres";
+            using var connection = new NpgsqlConnection(builder.ConnectionString);
+            await connection.OpenAsync(cancellationToken);
+            
+            string createSql = template ?? $"CREATE DATABASE \"{databaseName}\"";
+            if (template != null)
+            {
+                createSql = string.Format(template, databaseName);
+            }
+
+            _logProvider?.WriteInformation($"Creating database: {databaseName}");
+            
+            using var cmd = new NpgsqlCommand(createSql, connection);
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
+            
+            _logProvider?.WriteInformation($"Database created successfully: {databaseName}");
+        }
+        catch (Exception ex)
+        {
+            _logProvider?.WriteError($"Error creating database: {ex.Message}");
+            throw;
+        }
+    }
+
+    public async Task EnsureDatabaseExistsAsync(string template = null, CancellationToken cancellationToken = default)
+    {
+        if (!await DatabaseExistsAsync(cancellationToken))
+        {
+            await CreateDatabaseAsync(template, cancellationToken);
+        }
+        else
+        {
+            var builder = new NpgsqlConnectionStringBuilder(_connectionString);
+            string databaseName = builder.Database;
+            _logProvider?.WriteInformation($"Database already exists: {databaseName}");
+        }
+    }
+}
+
+// Usage with PostgreSQL provider
+var config = new DbReactorConfiguration()
+    .WithPostgreSQL(connectionString)
+    .WithLogToConsole()
+    .WithEmbeddedScripts(typeof(Program).Assembly);
+
+// Or configure database provisioner separately
+config.DatabaseProvisioner = new PostgresDatabaseProvisioner(connectionString, config.LogProvider);
+config.CreateDatabaseIfNotExists();
 ```
 
 ### Custom Migration Journal

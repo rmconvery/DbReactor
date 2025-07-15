@@ -3,11 +3,13 @@ using DbReactor.Core.Logging;
 using DbReactor.Core.Provisioning;
 using Microsoft.Data.SqlClient;
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DbReactor.MSSqlServer.Provisioning
 {
     /// <summary>
-    /// SQL Server implementation of database provisioner
+    /// SQL Server async-first implementation of database provisioner
     /// </summary>
     public class SqlServerDatabaseProvisioner : IDatabaseProvisioner
     {
@@ -20,7 +22,7 @@ namespace DbReactor.MSSqlServer.Provisioning
             _logProvider = logProvider ?? new NullLogProvider();
         }
 
-        public bool DatabaseExists()
+        public async Task<bool> DatabaseExistsAsync(CancellationToken cancellationToken = default)
         {
             try
             {
@@ -36,11 +38,12 @@ namespace DbReactor.MSSqlServer.Provisioning
 
                 using (SqlConnection connection = new SqlConnection(masterConnectionString))
                 {
-                    connection.Open();
+                    await connection.OpenAsync(cancellationToken);
                     using (SqlCommand cmd = new SqlCommand("SELECT COUNT(*) FROM sys.databases WHERE name = @dbName", connection))
                     {
                         cmd.Parameters.AddWithValue("@dbName", databaseName);
-                        return (int)cmd.ExecuteScalar() > 0;
+                        var result = await cmd.ExecuteScalarAsync(cancellationToken);
+                        return (int)result > 0;
                     }
                 }
             }
@@ -51,7 +54,7 @@ namespace DbReactor.MSSqlServer.Provisioning
             }
         }
 
-        public void CreateDatabase(string template = null)
+        public async Task CreateDatabaseAsync(string template = null, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -75,10 +78,10 @@ namespace DbReactor.MSSqlServer.Provisioning
 
                 using (SqlConnection connection = new SqlConnection(masterConnectionString))
                 {
-                    connection.Open();
+                    await connection.OpenAsync(cancellationToken);
                     using (SqlCommand cmd = new SqlCommand(createSql, connection))
                     {
-                        cmd.ExecuteNonQuery();
+                        await cmd.ExecuteNonQueryAsync(cancellationToken);
                     }
                 }
 
@@ -91,11 +94,11 @@ namespace DbReactor.MSSqlServer.Provisioning
             }
         }
 
-        public void EnsureDatabaseExists(string template = null)
+        public async Task EnsureDatabaseExistsAsync(string template = null, CancellationToken cancellationToken = default)
         {
-            if (!DatabaseExists())
+            if (!await DatabaseExistsAsync(cancellationToken))
             {
-                CreateDatabase(template);
+                await CreateDatabaseAsync(template, cancellationToken);
             }
             else
             {

@@ -93,7 +93,7 @@ namespace DbReactor.Core.Engine
                 if (_configuration.CreateDatabaseIfNotExists && _configuration.DatabaseProvisioner != null)
                 {
                     _configuration.LogProvider?.WriteInformation("Ensuring database exists...");
-                    _configuration.DatabaseProvisioner.EnsureDatabaseExists(_configuration.DatabaseCreationTemplate);
+                    await _configuration.DatabaseProvisioner.EnsureDatabaseExistsAsync(_configuration.DatabaseCreationTemplate, cancellationToken);
                 }
 
                 // Ensure journal table exists
@@ -153,7 +153,7 @@ namespace DbReactor.Core.Engine
                 if (_configuration.CreateDatabaseIfNotExists && _configuration.DatabaseProvisioner != null)
                 {
                     _configuration.LogProvider?.WriteInformation("Ensuring database exists...");
-                    _configuration.DatabaseProvisioner.EnsureDatabaseExists(_configuration.DatabaseCreationTemplate);
+                    await _configuration.DatabaseProvisioner.EnsureDatabaseExistsAsync(_configuration.DatabaseCreationTemplate, cancellationToken);
                 }
 
                 // Ensure journal table exists
