@@ -6,7 +6,8 @@ using DbReactor.Core.Models;
 using DbReactor.Core.Models.Scripts;
 using DbReactor.Core.Services;
 using System;
-using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DbReactor.Core.Engine
 {
@@ -26,7 +27,7 @@ namespace DbReactor.Core.Engine
             _variableService = new VariableSubstitutionService();
         }
 
-        public MigrationResult ExecuteUpgrade(IMigration migration)
+        public async Task<MigrationResult> ExecuteUpgradeAsync(IMigration migration, CancellationToken cancellationToken = default)
         {
             DateTime startTime = _timeProvider.UtcNow;
             MigrationResult result = new MigrationResult { Script = migration.UpgradeScript };
@@ -40,14 +41,14 @@ namespace DbReactor.Core.Engine
                 // Code scripts already handle variables internally
                 string scriptContent = migration.UpgradeScript.Script;
                 IScript executableScript = migration.UpgradeScript;
-                
+
                 if (_configuration.EnableVariables && _configuration.Variables?.Count > 0 && !(migration.UpgradeScript is ManagedCodeScript))
                 {
                     // Only apply string substitution to SQL/embedded scripts, not code scripts
                     scriptContent = _variableService.SubstituteVariables(scriptContent, _configuration.Variables);
                     executableScript = new GenericScript(migration.UpgradeScript.Name, scriptContent);
                 }
-                
+
                 if (string.IsNullOrWhiteSpace(scriptContent))
                 {
                     throw new MigrationExecutionException(DbReactorConstants.ErrorMessages.UpgradeScriptContentEmpty, migration.Name);
@@ -56,7 +57,7 @@ namespace DbReactor.Core.Engine
                 // Execute the script
                 try
                 {
-                    result = _configuration.ScriptExecutor.Execute(executableScript, _configuration.ConnectionManager);
+                    result = await _configuration.ScriptExecutor.ExecuteAsync(executableScript, _configuration.ConnectionManager, cancellationToken);
                     result.ExecutionTime = _timeProvider.UtcNow - startTime;
                 }
                 catch (Exception ex)
@@ -76,7 +77,7 @@ namespace DbReactor.Core.Engine
                         migration.DowngradeScript,
                         downgradeScript
                     );
-                    _configuration.MigrationJournal.StoreExecutedMigration(migrationWithDowngrade, result);
+                    await _configuration.MigrationJournal.StoreExecutedMigrationAsync(migrationWithDowngrade, result, cancellationToken);
                 }
             }
             catch (MigrationExecutionException)
@@ -90,7 +91,7 @@ namespace DbReactor.Core.Engine
                 result.Error = ex;
                 result.ErrorMessage = ex.Message;
                 result.ExecutionTime = _timeProvider.UtcNow - startTime;
-                
+
                 throw new MigrationExecutionException(
                     string.Format(DbReactorConstants.ErrorMessages.MigrationExecutionFailed, migration.Name, ex.Message),
                     migration.Name,
@@ -100,7 +101,7 @@ namespace DbReactor.Core.Engine
             return result;
         }
 
-        public MigrationResult ExecuteDowngrade(MigrationJournalEntry entry)
+        public async Task<MigrationResult> ExecuteDowngradeAsync(MigrationJournalEntry entry, CancellationToken cancellationToken = default)
         {
             DateTime startTime = _timeProvider.UtcNow;
             MigrationResult result = new MigrationResult();
@@ -136,7 +137,7 @@ namespace DbReactor.Core.Engine
                 // Execute the script
                 try
                 {
-                    result = _configuration.ScriptExecutor.Execute(script, _configuration.ConnectionManager);
+                    result = await _configuration.ScriptExecutor.ExecuteAsync(script, _configuration.ConnectionManager, cancellationToken);
                     result.ExecutionTime = _timeProvider.UtcNow - startTime;
                 }
                 catch (Exception ex)
@@ -150,7 +151,7 @@ namespace DbReactor.Core.Engine
                 if (result.Successful)
                 {
                     // Remove from journal
-                    _configuration.MigrationJournal.RemoveExecutedMigration(entry.UpgradeScriptHash);
+                    await _configuration.MigrationJournal.RemoveExecutedMigrationAsync(entry.UpgradeScriptHash, cancellationToken);
                 }
             }
             catch (Exception ex)
@@ -175,7 +176,7 @@ namespace DbReactor.Core.Engine
                 {
                     // Use variables if enabled
                     codeScriptWrapper.GenerateUpgradeScript(_configuration.ConnectionManager, _configuration.Variables);
-                    
+
                     // Use the code script's own downgrade if supported
                     if (codeScriptWrapper.CodeScript.SupportsDowngrade)
                     {
@@ -186,7 +187,7 @@ namespace DbReactor.Core.Engine
                 {
                     // Fallback to non-variable version
                     codeScriptWrapper.GenerateUpgradeScript(_configuration.ConnectionManager);
-                    
+
                     // Use the code script's own downgrade if supported
                     if (codeScriptWrapper.CodeScript.SupportsDowngrade)
                     {
@@ -198,7 +199,7 @@ namespace DbReactor.Core.Engine
             {
                 // For SQL/embedded scripts, use the explicit downgrade if present
                 downgradeScript = migration.DowngradeScript.Script;
-                
+
                 // Apply variable substitution to downgrade script if enabled
                 if (_configuration.EnableVariables && _configuration.Variables?.Count > 0)
                 {

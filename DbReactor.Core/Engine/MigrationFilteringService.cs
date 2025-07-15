@@ -6,6 +6,8 @@ using DbReactor.Core.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DbReactor.Core.Engine
 {
@@ -21,30 +23,53 @@ namespace DbReactor.Core.Engine
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         }
 
-        public bool HasPendingUpgrades()
+        public async Task<bool> HasPendingUpgradesAsync(CancellationToken cancellationToken = default)
         {
-            return GetPendingUpgrades().Any();
+            var pendingUpgrades = await GetPendingUpgradesAsync(cancellationToken);
+            return pendingUpgrades.Any();
         }
 
-        public IEnumerable<IMigration> GetPendingUpgrades()
+        public async Task<IEnumerable<IMigration>> GetPendingUpgradesAsync(CancellationToken cancellationToken = default)
         {
-            IEnumerable<IMigration> migrations = GetMigrations();
-            return migrations.Where(migration => !_configuration.MigrationJournal.HasBeenExecuted(migration));
+            var migrations = GetMigrations();
+            var pendingMigrations = new List<IMigration>();
+            
+            foreach (var migration in migrations)
+            {
+                var hasBeenExecuted = await _configuration.MigrationJournal.HasBeenExecutedAsync(migration, cancellationToken);
+                if (!hasBeenExecuted)
+                {
+                    pendingMigrations.Add(migration);
+                }
+            }
+            
+            return pendingMigrations;
         }
 
-        public IEnumerable<IMigration> GetAppliedUpgrades()
+        public async Task<IEnumerable<IMigration>> GetAppliedUpgradesAsync(CancellationToken cancellationToken = default)
         {
-            IEnumerable<IMigration> migrations = GetMigrations();
-            return migrations.Where(migration => _configuration.MigrationJournal.HasBeenExecuted(migration));
+            var migrations = GetMigrations();
+            var appliedMigrations = new List<IMigration>();
+            
+            foreach (var migration in migrations)
+            {
+                var hasBeenExecuted = await _configuration.MigrationJournal.HasBeenExecutedAsync(migration, cancellationToken);
+                if (hasBeenExecuted)
+                {
+                    appliedMigrations.Add(migration);
+                }
+            }
+            
+            return appliedMigrations;
         }
 
-        public IEnumerable<MigrationJournalEntry> GetEntriesToDowngrade()
+        public async Task<IEnumerable<MigrationJournalEntry>> GetEntriesToDowngradeAsync(CancellationToken cancellationToken = default)
         {
             // Get all executed scripts from the journal
-            IEnumerable<MigrationJournalEntry> executedMigrationJournalEntries = _configuration.MigrationJournal.GetExecutedMigrations();
+            var executedMigrationJournalEntries = await _configuration.MigrationJournal.GetExecutedMigrationsAsync(cancellationToken);
 
             // Get migrations
-            IEnumerable<IMigration> migrations = GetMigrations();
+            var migrations = GetMigrations();
 
             // Identify journal entries that are not in the upgrade scripts list
             return executedMigrationJournalEntries
@@ -91,9 +116,7 @@ namespace DbReactor.Core.Engine
 
         private string GetBaseName(string scriptName)
         {
-            // Get the last segment after the last dot
-            int lastDot = scriptName.LastIndexOf('.');
-            string baseName = lastDot >= 0 ? scriptName.Substring(lastDot + 1) : scriptName;
+            string baseName = scriptName;
 
             // Remove common file extensions
             foreach (string ext in DbReactorConstants.FileExtensions.All)
@@ -101,6 +124,7 @@ namespace DbReactor.Core.Engine
                 if (baseName.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
                 {
                     baseName = baseName.Substring(0, baseName.Length - ext.Length);
+                    break; // Only remove one extension
                 }
             }
 

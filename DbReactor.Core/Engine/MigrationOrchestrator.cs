@@ -4,6 +4,8 @@ using DbReactor.Core.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DbReactor.Core.Engine
 {
@@ -26,7 +28,7 @@ namespace DbReactor.Core.Engine
             _filteringService = filteringService ?? throw new ArgumentNullException(nameof(filteringService));
         }
 
-        public DbReactorResult ExecuteMigrations()
+        public async Task<DbReactorResult> ExecuteMigrationsAsync(CancellationToken cancellationToken = default)
         {
             DbReactorResult result = new DbReactorResult();
 
@@ -36,7 +38,7 @@ namespace DbReactor.Core.Engine
 
                 // Apply upgrades
                 _configuration.LogProvider?.WriteInformation("Applying upgrades...");
-                DbReactorResult upgradeResult = ApplyUpgrades();
+                DbReactorResult upgradeResult = await ApplyUpgradesAsync(cancellationToken);
                 result.Scripts.AddRange(upgradeResult.Scripts);
 
                 if (!upgradeResult.Successful)
@@ -52,7 +54,7 @@ namespace DbReactor.Core.Engine
                 if (_configuration.AllowDowngrades)
                 {
                     _configuration.LogProvider?.WriteInformation("Applying downgrades...");
-                    DbReactorResult downgradeResult = ApplyDowngrades();
+                    DbReactorResult downgradeResult = await ApplyDowngradesAsync(cancellationToken);
                     result.Scripts.AddRange(downgradeResult.Scripts);
 
                     if (!downgradeResult.Successful)
@@ -79,7 +81,7 @@ namespace DbReactor.Core.Engine
             return result;
         }
 
-        public DbReactorResult ApplyUpgrades()
+        public async Task<DbReactorResult> ApplyUpgradesAsync(CancellationToken cancellationToken = default)
         {
             DbReactorResult result = new DbReactorResult();
 
@@ -95,10 +97,10 @@ namespace DbReactor.Core.Engine
                 }
 
                 // Ensure journal table exists
-                _configuration.MigrationJournal.EnsureTableExists(_configuration.ConnectionManager);
+                await _configuration.MigrationJournal.EnsureTableExistsAsync(_configuration.ConnectionManager, cancellationToken);
 
                 // Get pending scripts
-                IEnumerable<IMigration> pendingMigrations = _filteringService.GetPendingUpgrades();
+                IEnumerable<IMigration> pendingMigrations = await _filteringService.GetPendingUpgradesAsync(cancellationToken);
 
                 if (!pendingMigrations.Any())
                 {
@@ -112,7 +114,7 @@ namespace DbReactor.Core.Engine
                 // Execute each script
                 foreach (IMigration migration in pendingMigrations)
                 {
-                    MigrationResult scriptResult = _executionService.ExecuteUpgrade(migration);
+                    MigrationResult scriptResult = await _executionService.ExecuteUpgradeAsync(migration, cancellationToken);
                     result.Scripts.Add(scriptResult);
 
                     if (!scriptResult.Successful)
@@ -141,7 +143,7 @@ namespace DbReactor.Core.Engine
             return result;
         }
 
-        public DbReactorResult ApplyDowngrades()
+        public async Task<DbReactorResult> ApplyDowngradesAsync(CancellationToken cancellationToken = default)
         {
             DbReactorResult result = new DbReactorResult();
 
@@ -155,7 +157,7 @@ namespace DbReactor.Core.Engine
                 }
 
                 // Ensure journal table exists
-                _configuration.MigrationJournal.EnsureTableExists(_configuration.ConnectionManager);
+                await _configuration.MigrationJournal.EnsureTableExistsAsync(_configuration.ConnectionManager, cancellationToken);
 
                 // Check if downgrades are enabled
                 if (!_configuration.AllowDowngrades)
@@ -168,7 +170,7 @@ namespace DbReactor.Core.Engine
                 _configuration.LogProvider?.WriteInformation("Starting database downgrade...");
 
                 // Get entries to downgrade
-                IEnumerable<MigrationJournalEntry> entriesToDowngrade = _filteringService.GetEntriesToDowngrade();
+                IEnumerable<MigrationJournalEntry> entriesToDowngrade = await _filteringService.GetEntriesToDowngradeAsync(cancellationToken);
 
                 if (!entriesToDowngrade.Any())
                 {
@@ -182,7 +184,7 @@ namespace DbReactor.Core.Engine
                 // Execute downgrade for each journal entry
                 foreach (MigrationJournalEntry entry in entriesToDowngrade)
                 {
-                    MigrationResult scriptResult = _executionService.ExecuteDowngrade(entry);
+                    MigrationResult scriptResult = await _executionService.ExecuteDowngradeAsync(entry, cancellationToken);
                     result.Scripts.Add(scriptResult);
 
                     if (!scriptResult.Successful)

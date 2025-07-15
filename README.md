@@ -1,23 +1,20 @@
 # DbReactor.Core - .NET Database Migration Framework
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![NuGet](https://img.shields.io/badge/nuget-v1.0.0-blue)]()
-[![License](https://img.shields.io/badge/license-MIT-green)]()
 
 DbReactor.Core is a powerful, extensible .NET database migration framework that provides version-controlled, repeatable database schema management. It supports multiple script types, database providers, and offers comprehensive tracking and rollback capabilities.
 
-## 🚀 Features
+## Features
 
 - **Multiple Script Types**: SQL scripts, dynamic C# code scripts, and embedded resources
 - **Database Agnostic**: Extensible architecture supports any database platform
 - **Comprehensive Tracking**: Full migration history with execution time and rollback support
 - **Safe Migrations**: Built-in SQL injection protection and transaction management
 - **Flexible Discovery**: Multiple ways to organize and discover migration scripts
-- **Async Support**: Non-blocking database operations with cancellation tokens
+- **Async-First Architecture**: Non-blocking database operations with cancellation tokens and sync wrappers
 - **Robust Error Handling**: Detailed exception hierarchy with contextual information
 - **Production Ready**: Enterprise-grade security and performance optimizations
 
-## 📦 Installation
+## Installation
 
 ```bash
 # Core framework
@@ -27,7 +24,7 @@ dotnet add package DbReactor.Core
 dotnet add package DbReactor.MSSqlServer
 ```
 
-## 🏃 Quick Start
+## Quick Start
 
 ### Basic Setup
 
@@ -45,16 +42,21 @@ var config = new DbReactorConfiguration()
 
 // Create and run migrations
 var engine = new DbReactorEngine(config);
+
+// Synchronous execution (recommended for console apps)
 var result = engine.Run();
 
 if (result.Successful)
 {
-    Console.WriteLine("✅ Migration completed successfully!");
+    Console.WriteLine("Migration completed successfully!");
 }
 else
 {
-    Console.WriteLine($"❌ Migration failed: {result.ErrorMessage}");
+    Console.WriteLine($"Migration failed: {result.ErrorMessage}");
 }
+
+// Or run asynchronously
+var asyncResult = await engine.RunAsync();
 ```
 
 ### Project Structure
@@ -81,7 +83,7 @@ Mark your SQL scripts as **Embedded Resources** in your project file:
 </ItemGroup>
 ```
 
-## 📚 Comprehensive User Guide
+## Comprehensive User Guide
 
 ### Core Concepts
 
@@ -106,10 +108,10 @@ public class SeedUsers : ICodeScript
 {
     public bool SupportsDowngrade => true;
 
-    public string GetUpgradeScript(IConnectionManager connectionManager)
+    public string GetUpgradeScript(CodeScriptContext context)
     {
         // Dynamic SQL generation with database queries
-        var userCount = connectionManager.ExecuteWithManagedConnection(
+        var userCount = context.ConnectionManager.ExecuteWithManagedConnection(
             (conn, cmd) => {
                 cmd.CommandText = "SELECT COUNT(*) FROM Users";
                 return (int)cmd.ExecuteScalar();
@@ -124,7 +126,7 @@ public class SeedUsers : ICodeScript
             ('user1', 'user1@company.com')";
     }
 
-    public string GetDowngradeScript(IConnectionManager connectionManager)
+    public string GetDowngradeScript(CodeScriptContext context)
     {
         return "DELETE FROM Users WHERE Username IN ('admin', 'user1')";
     }
@@ -324,19 +326,19 @@ INSERT INTO Configuration (Key, Value) VALUES
 
 #### Code Script Variables
 
-Code scripts receive variables as a `IReadOnlyDictionary<string, string>` parameter:
+Code scripts receive variables through a `CodeScriptContext` parameter that provides both connection manager and variable access:
 
 ```csharp
 public class EnvironmentSpecificMigration : ICodeScript
 {
     public bool SupportsDowngrade => true;
 
-    public string GetUpgradeScript(IConnectionManager connectionManager, IReadOnlyDictionary<string, string> variables)
+    public string GetUpgradeScript(CodeScriptContext context)
     {
-        // Access variables with safe defaults
-        string environment = variables.TryGetValue("Environment", out string env) ? env : "Development";
-        string tenantId = variables.TryGetValue("TenantId", out string tenant) ? tenant : "default";
-        string adminEmail = variables.TryGetValue("AdminEmail", out string email) ? email : "admin@example.com";
+        // Access variables with the improved API
+        string environment = context.Vars.GetString("Environment", "Development");
+        string tenantId = context.Vars.GetRequiredString("TenantId"); // Throws if missing
+        string adminEmail = context.Vars.GetString("AdminEmail", "admin@example.com");
 
         // Use variables in script generation
         var script = new StringBuilder();
@@ -357,24 +359,77 @@ public class EnvironmentSpecificMigration : ICodeScript
         return script.ToString();
     }
 
-    public string GetDowngradeScript(IConnectionManager connectionManager, IReadOnlyDictionary<string, string> variables)
+    public string GetDowngradeScript(CodeScriptContext context)
     {
-        string tenantId = variables.TryGetValue("TenantId", out string tenant) ? tenant : "default";
+        string tenantId = context.Vars.GetRequiredString("TenantId");
         return $"DELETE FROM AdminUsers WHERE TenantId = '{tenantId}';";
-    }
-
-    // Backward compatibility - called when variables are not enabled
-    public string GetUpgradeScript(IConnectionManager connectionManager)
-    {
-        return GetUpgradeScript(connectionManager, new Dictionary<string, string>());
-    }
-
-    public string GetDowngradeScript(IConnectionManager connectionManager)
-    {
-        return GetDowngradeScript(connectionManager, new Dictionary<string, string>());
     }
 }
 ```
+
+#### Variable Accessor API
+
+The `VariableAccessor` class provides a fluent API for accessing variables with automatic type conversion and validation:
+
+```csharp
+public class TypedVariableExample : ICodeScript
+{
+    public bool SupportsDowngrade => true;
+
+    public string GetUpgradeScript(CodeScriptContext context)
+    {
+        // String variables with defaults
+        string environment = context.Vars.GetString("Environment", "Development");
+        string adminEmail = context.Vars.GetString("AdminEmail", "admin@example.com");
+        
+        // Required string variables (throws if missing)
+        string tenantId = context.Vars.GetRequiredString("TenantId");
+        
+        // Integer variables with automatic parsing
+        int maxRetries = context.Vars.GetInt("MaxRetries", 3);
+        int batchSize = context.Vars.GetRequiredInt("BatchSize"); // Throws if missing or invalid
+        
+        // Boolean variables
+        bool enableDebug = context.Vars.GetBool("EnableDebug", false);
+        bool isProduction = context.Vars.GetRequiredBool("IsProduction");
+        
+        // Check if variable exists
+        if (context.Vars.HasVariable("SpecialFeature"))
+        {
+            // Handle special feature configuration
+        }
+        
+        // Get all variable names for debugging
+        var allVariables = string.Join(", ", context.Vars.GetVariableNames());
+        
+        return $@"
+            -- Migration for {environment} environment
+            -- Tenant: {tenantId}, Debug: {enableDebug}, Production: {isProduction}
+            -- Max retries: {maxRetries}, Batch size: {batchSize}
+            -- Available variables: {allVariables}
+            
+            INSERT INTO Configuration (TenantId, Environment, MaxRetries, BatchSize, EnableDebug) 
+            VALUES ('{tenantId}', '{environment}', {maxRetries}, {batchSize}, {(enableDebug ? 1 : 0)});
+        ";
+    }
+
+    public string GetDowngradeScript(CodeScriptContext context)
+    {
+        string tenantId = context.Vars.GetRequiredString("TenantId");
+        return $"DELETE FROM Configuration WHERE TenantId = '{tenantId}';";
+    }
+}
+```
+
+**Available Methods:**
+- `GetString(key, defaultValue)` - Get string variable with optional default
+- `GetRequiredString(key)` - Get required string variable (throws if missing)
+- `GetInt(key, defaultValue)` - Get integer variable with automatic parsing
+- `GetRequiredInt(key)` - Get required integer variable (throws if missing/invalid)
+- `GetBool(key, defaultValue)` - Get boolean variable with automatic parsing
+- `GetRequiredBool(key)` - Get required boolean variable (throws if missing/invalid)
+- `HasVariable(key)` - Check if variable exists
+- `GetVariableNames()` - Get all variable names
 
 #### Advanced Variable Usage
 
@@ -411,29 +466,29 @@ private Dictionary<string, string> GetEnvironmentVariables(string environment)
 
 #### Variable Best Practices
 
-1. **Always provide defaults** in code scripts to handle missing variables gracefully
+1. **Use VariableAccessor API** for cleaner, type-safe variable access
 2. **Use descriptive variable names** that clearly indicate their purpose
-3. **Validate critical variables** in code scripts before using them
+3. **Use GetRequired methods** for critical variables to fail fast with clear error messages
 4. **Keep variable values simple** - avoid complex JSON or special characters in SQL substitution
 5. **Document required variables** for each migration that uses them
 
 ```csharp
-// Example of robust variable handling
-public string GetUpgradeScript(IConnectionManager connectionManager, IReadOnlyDictionary<string, string> variables)
+// Example of robust variable handling with VariableAccessor
+public string GetUpgradeScript(CodeScriptContext context)
 {
-    // Validate required variables
-    if (!variables.TryGetValue("TenantId", out string tenantId) || string.IsNullOrEmpty(tenantId))
-    {
-        throw new ArgumentException("TenantId variable is required for this migration");
-    }
-
-    // Use optional variables with defaults
-    string environment = variables.TryGetValue("Environment", out string env) ? env : "Development";
-    int maxRetries = int.TryParse(variables.TryGetValue("MaxRetries", out string retries) ? retries : "3", out int result) ? result : 3;
+    // Required variables throw clear exceptions if missing
+    string tenantId = context.Vars.GetRequiredString("TenantId");
+    
+    // Optional variables with sensible defaults
+    string environment = context.Vars.GetString("Environment", "Development");
+    int maxRetries = context.Vars.GetInt("MaxRetries", 3);
+    
+    // Type-safe boolean handling
+    bool enableFeature = context.Vars.GetBool("EnableFeature", false);
 
     return $@"
-        INSERT INTO TenantConfiguration (TenantId, Environment, MaxRetries) 
-        VALUES ('{tenantId}', '{environment}', {maxRetries});
+        INSERT INTO TenantConfiguration (TenantId, Environment, MaxRetries, EnableFeature) 
+        VALUES ('{tenantId}', '{environment}', {maxRetries}, {(enableFeature ? 1 : 0)});
     ";
 }
 ```
@@ -459,7 +514,7 @@ public class MigrateUserRoles : ICodeScript
 {
     public bool SupportsDowngrade => true;
 
-    public string GetUpgradeScript(IConnectionManager connectionManager)
+    public string GetUpgradeScript(CodeScriptContext context)
     {
         return @"
             -- Backup existing data
@@ -474,7 +529,7 @@ public class MigrateUserRoles : ICodeScript
         ";
     }
 
-    public string GetDowngradeScript(IConnectionManager connectionManager)
+    public string GetDowngradeScript(CodeScriptContext context)
     {
         return @"
             -- Remove the column
@@ -493,12 +548,12 @@ public class ConditionalIndexCreation : ICodeScript
 {
     public bool SupportsDowngrade => false;
 
-    public string GetUpgradeScript(IConnectionManager connectionManager)
+    public string GetUpgradeScript(CodeScriptContext context)
     {
         var sb = new StringBuilder();
         
         // Check if index already exists
-        var indexExists = connectionManager.ExecuteWithManagedConnection(
+        var indexExists = context.ConnectionManager.ExecuteWithManagedConnection(
             (conn, cmd) => {
                 cmd.CommandText = @"
                     SELECT COUNT(*) FROM sys.indexes 
@@ -512,7 +567,7 @@ public class ConditionalIndexCreation : ICodeScript
         }
 
         // Add more conditional logic
-        var recordCount = connectionManager.ExecuteWithManagedConnection(
+        var recordCount = context.ConnectionManager.ExecuteWithManagedConnection(
             (conn, cmd) => {
                 cmd.CommandText = "SELECT COUNT(*) FROM Users";
                 return (int)cmd.ExecuteScalar();
@@ -526,7 +581,7 @@ public class ConditionalIndexCreation : ICodeScript
         return sb.ToString();
     }
 
-    public string GetDowngradeScript(IConnectionManager connectionManager)
+    public string GetDowngradeScript(CodeScriptContext context)
     {
         throw new NotSupportedException("This migration cannot be rolled back");
     }
@@ -615,10 +670,10 @@ public class GoodMigrationExample : ICodeScript
 {
     public bool SupportsDowngrade => true;
 
-    public string GetUpgradeScript(IConnectionManager connectionManager)
+    public string GetUpgradeScript(CodeScriptContext context)
     {
         // ✅ Good: Validate preconditions
-        var tableExists = connectionManager.ExecuteWithManagedConnection(
+        var tableExists = context.ConnectionManager.ExecuteWithManagedConnection(
             (conn, cmd) => {
                 cmd.CommandText = "SELECT OBJECT_ID('Users')";
                 return cmd.ExecuteScalar() != null;
@@ -641,7 +696,7 @@ public class GoodMigrationExample : ICodeScript
         return sql.ToString();
     }
 
-    public string GetDowngradeScript(IConnectionManager connectionManager)
+    public string GetDowngradeScript(CodeScriptContext context)
     {
         // ✅ Good: Provide complete rollback
         return @"
@@ -652,7 +707,7 @@ public class GoodMigrationExample : ICodeScript
 }
 ```
 
-## 🔧 Creating Custom Providers and Extensions
+## Creating Custom Providers and Extensions
 
 ### Custom Script Provider
 
@@ -1232,28 +1287,34 @@ public class CustomProvider : IScriptProvider
 }
 ```
 
-#### 4. Async Support
-If creating async providers, implement both sync and async interfaces:
+#### 4. Async-First Architecture
+DbReactor uses async-first architecture. All core operations are async with sync extension methods:
 
 ```csharp
-public class AsyncCustomProvider : IScriptProvider, IScriptProviderAsync
+public class CustomConnectionManager : IConnectionManager
 {
-    // Sync implementation
-    public IEnumerable<IScript> GetScripts()
+    public async Task<IDbConnection> CreateConnectionAsync(CancellationToken cancellationToken = default)
     {
-        return GetScriptsAsync().GetAwaiter().GetResult();
+        var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        return connection;
     }
 
-    // Async implementation
-    public async Task<IEnumerable<IScript>> GetScriptsAsync(CancellationToken cancellationToken = default)
+    public async Task ExecuteWithManagedConnectionAsync(Func<IDbConnection, Task> operation, CancellationToken cancellationToken = default)
     {
-        // Your async implementation
-        return await DiscoverScriptsAsync(cancellationToken);
+        using var connection = await CreateConnectionAsync(cancellationToken);
+        await operation(connection);
+    }
+
+    public async Task<T> ExecuteWithManagedConnectionAsync<T>(Func<IDbConnection, Task<T>> operation, CancellationToken cancellationToken = default)
+    {
+        using var connection = await CreateConnectionAsync(cancellationToken);
+        return await operation(connection);
     }
 }
 ```
 
-## 🧪 Testing
+## Testing
 
 ### Unit Testing Migration Scripts
 
@@ -1270,9 +1331,10 @@ public class MigrationTests
         // Arrange
         var migration = new _002_SeedUsers();
         var mockConnectionManager = new Mock<IConnectionManager>();
+        var context = new CodeScriptContext(mockConnectionManager.Object);
         
         // Act
-        var script = migration.GetUpgradeScript(mockConnectionManager.Object);
+        var script = migration.GetUpgradeScript(context);
         
         // Assert
         Assert.IsTrue(script.Contains("INSERT INTO Users"));
@@ -1285,9 +1347,10 @@ public class MigrationTests
         // Arrange
         var migration = new _002_SeedUsers();
         var mockConnectionManager = new Mock<IConnectionManager>();
+        var context = new CodeScriptContext(mockConnectionManager.Object);
         
         // Act
-        var script = migration.GetDowngradeScript(mockConnectionManager.Object);
+        var script = migration.GetDowngradeScript(context);
         
         // Assert
         Assert.IsTrue(script.Contains("DELETE FROM Users"));
@@ -1306,26 +1369,57 @@ public class IntegrationTests
         "Server=localhost;Database=DbReactor_Test;Trusted_Connection=true;";
 
     [TestMethod]
-    public void CompleteFlow_UpgradeAndDowngrade_Success()
+    public async Task CompleteFlow_UpgradeAndDowngrade_Success()
     {
         // Arrange
         var config = new DbReactorConfiguration()
-            .WithSqlServer(TestConnectionString)
-            .WithEnsureDatabaseExists()
-            .WithEmbeddedScripts(typeof(IntegrationTests).Assembly)
-            .WithDowngrades();
+            .UseSqlServer(TestConnectionString)
+            .CreateDatabaseIfNotExists()
+            .UseEmbeddedScripts(typeof(IntegrationTests).Assembly);
 
         var engine = new DbReactorEngine(config);
 
         try
         {
-            // Act - Run upgrades
+            // Act - Run upgrades (async)
+            var upgradeResult = await engine.ApplyUpgradesAsync();
+            
+            // Assert - Upgrades successful
+            Assert.IsTrue(upgradeResult.Successful);
+            
+            // Act - Run downgrades (async)
+            var downgradeResult = await engine.ApplyDowngradesAsync();
+            
+            // Assert - Downgrades successful
+            Assert.IsTrue(downgradeResult.Successful);
+        }
+        finally
+        {
+            // Cleanup test database
+            CleanupTestDatabase();
+        }
+    }
+
+    [TestMethod]
+    public void CompleteFlow_SyncWrapper_Success()
+    {
+        // Arrange
+        var config = new DbReactorConfiguration()
+            .UseSqlServer(TestConnectionString)
+            .CreateDatabaseIfNotExists()
+            .UseEmbeddedScripts(typeof(IntegrationTests).Assembly);
+
+        var engine = new DbReactorEngine(config);
+
+        try
+        {
+            // Act - Run upgrades (sync wrapper)
             var upgradeResult = engine.ApplyUpgrades();
             
             // Assert - Upgrades successful
             Assert.IsTrue(upgradeResult.Successful);
             
-            // Act - Run downgrades
+            // Act - Run downgrades (sync wrapper)
             var downgradeResult = engine.ApplyDowngrades();
             
             // Assert - Downgrades successful
@@ -1340,7 +1434,7 @@ public class IntegrationTests
 }
 ```
 
-## 🚀 Performance Optimization
+## Performance Optimization
 
 ### Best Practices for Large Databases
 
@@ -1348,10 +1442,9 @@ public class IntegrationTests
 ```csharp
 public class LargeDataMigration : ICodeScript
 {
-    public string Name => "010_MigrateLargeDataset";
     public bool SupportsDowngrade => false;
 
-    public string GetUpgradeScript(IConnectionManager connectionManager)
+    public string GetUpgradeScript(CodeScriptContext context)
     {
         return @"
             -- Process in batches to avoid lock escalation
@@ -1380,10 +1473,9 @@ public class LargeDataMigration : ICodeScript
 ```csharp
 public class IndexOptimization : ICodeScript
 {
-    public string Name => "011_OptimizeIndexes";
     public bool SupportsDowngrade => true;
 
-    public string GetUpgradeScript(IConnectionManager connectionManager)
+    public string GetUpgradeScript(CodeScriptContext context)
     {
         return @"
             -- Drop indexes before large data operations
@@ -1399,7 +1491,7 @@ public class IndexOptimization : ICodeScript
         ";
     }
 
-    public string GetDowngradeScript(IConnectionManager connectionManager)
+    public string GetDowngradeScript(CodeScriptContext context)
     {
         return @"
             DROP INDEX IF EXISTS IX_LargeTable_NewIndexColumn ON LargeTable;
@@ -1412,20 +1504,26 @@ public class IndexOptimization : ICodeScript
 }
 ```
 
-## 📖 API Reference
+## API Reference
 
 ### Core Classes
 
 #### DbReactorEngine
 Main entry point for migration operations.
 
-**Methods:**
-- `DbReactorResult Run()` - Execute full migration process
-- `DbReactorResult ApplyUpgrades()` - Apply pending upgrades only
-- `DbReactorResult ApplyDowngrades()` - Apply downgrades for removed migrations
-- `bool HasPendingUpgrades()` - Check if upgrades are needed
-- `IEnumerable<IMigration> GetPendingUpgrades()` - Get list of pending migrations
-- `IEnumerable<IMigration> GetAppliedUpgrades()` - Get list of applied migrations
+**Async Methods:**
+- `Task<DbReactorResult> RunAsync(CancellationToken cancellationToken = default)` - Execute full migration process
+- `Task<DbReactorResult> ApplyUpgradesAsync(CancellationToken cancellationToken = default)` - Apply pending upgrades only
+- `Task<DbReactorResult> ApplyDowngradesAsync(CancellationToken cancellationToken = default)` - Apply downgrades for removed migrations
+- `Task<bool> HasPendingUpgradesAsync(CancellationToken cancellationToken = default)` - Check if upgrades are needed
+- `Task<IEnumerable<IMigration>> GetPendingUpgradesAsync(CancellationToken cancellationToken = default)` - Get list of pending migrations
+- `Task<IEnumerable<IMigration>> GetAppliedUpgradesAsync(CancellationToken cancellationToken = default)` - Get list of applied migrations
+
+**Sync Extension Methods:**
+- `DbReactorResult Run()` - Synchronous wrapper for RunAsync
+- `DbReactorResult ApplyUpgrades()` - Synchronous wrapper for ApplyUpgradesAsync
+- `DbReactorResult ApplyDowngrades()` - Synchronous wrapper for ApplyDowngradesAsync
+- `bool HasPendingUpgrades()` - Synchronous wrapper for HasPendingUpgradesAsync
 
 #### DbReactorConfiguration
 Fluent configuration builder.
@@ -1446,12 +1544,32 @@ Fluent configuration builder.
 Interface for dynamic C# migration scripts.
 
 **Properties:**
-- `string Name { get; }` - Unique name for the script
 - `bool SupportsDowngrade { get; }` - Whether downgrade is available
 
 **Methods:**
-- `string GetUpgradeScript(IConnectionManager connectionManager)` - Generate upgrade SQL
-- `string GetDowngradeScript(IConnectionManager connectionManager)` - Generate downgrade SQL
+- `string GetUpgradeScript(CodeScriptContext context)` - Generate upgrade SQL
+- `string GetDowngradeScript(CodeScriptContext context)` - Generate downgrade SQL
+
+#### CodeScriptContext
+Context object that provides access to database connections and variables for code script execution.
+
+**Properties:**
+- `IConnectionManager ConnectionManager { get; }` - Database connection manager
+- `IReadOnlyDictionary<string, string> Variables { get; }` - Raw variables dictionary
+- `VariableAccessor Vars { get; }` - Fluent API for variable access with type conversion
+
+#### VariableAccessor
+Provides a fluent API for accessing variables with automatic type conversion and validation.
+
+**Methods:**
+- `string GetString(string key, string defaultValue = null)` - Get string variable
+- `string GetRequiredString(string key)` - Get required string variable
+- `int GetInt(string key, int defaultValue = 0)` - Get integer variable
+- `int GetRequiredInt(string key)` - Get required integer variable
+- `bool GetBool(string key, bool defaultValue = false)` - Get boolean variable
+- `bool GetRequiredBool(string key)` - Get required boolean variable
+- `bool HasVariable(string key)` - Check if variable exists
+- `IEnumerable<string> GetVariableNames()` - Get all variable names
 
 #### IScriptProvider
 Interface for discovering migration scripts.
@@ -1460,16 +1578,16 @@ Interface for discovering migration scripts.
 - `IEnumerable<IScript> GetScripts()` - Return all discovered scripts
 
 #### IMigrationJournal
-Interface for tracking migration execution.
+Interface for tracking migration execution (async-first with CancellationToken support).
 
 **Methods:**
-- `void EnsureTableExists(IConnectionManager connectionManager)` - Create journal table
-- `void StoreExecutedMigration(IMigration migration, MigrationResult result)` - Record execution
-- `void RemoveExecutedMigration(string upgradeScriptHash)` - Remove from history
-- `IEnumerable<MigrationJournalEntry> GetExecutedMigrations()` - Get execution history
-- `bool HasBeenExecuted(IMigration migration)` - Check if migration was run
+- `Task EnsureTableExistsAsync(IConnectionManager connectionManager, CancellationToken cancellationToken = default)` - Create journal table
+- `Task StoreExecutedMigrationAsync(IMigration migration, MigrationResult result, CancellationToken cancellationToken = default)` - Record execution
+- `Task RemoveExecutedMigrationAsync(string upgradeScriptHash, CancellationToken cancellationToken = default)` - Remove from history
+- `Task<IEnumerable<MigrationJournalEntry>> GetExecutedMigrationsAsync(CancellationToken cancellationToken = default)` - Get execution history
+- `Task<bool> HasBeenExecutedAsync(IMigration migration, CancellationToken cancellationToken = default)` - Check if migration was run
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
 
@@ -1486,18 +1604,18 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 3. Add comprehensive tests
 4. Update documentation
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🆘 Support
+## Support
 
 - 📚 [Documentation](docs/)
 - 🐛 [Issue Tracker](https://github.com/your-org/dbreactor/issues)
 - 💬 [Discussions](https://github.com/your-org/dbreactor/discussions)
 - 📧 [Email Support](mailto:support@dbreactor.com)
 
-## 🔄 Version History
+## Version History
 
 ### v1.0.0
 - Initial release
@@ -1505,7 +1623,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Embedded and Code script support
 - Migration journal tracking
 - Comprehensive error handling
+- Async-first architecture with CancellationToken support
+- All core interfaces async (IConnectionManager, IScriptExecutor, IMigrationJournal)
+- Sync extension methods for backward compatibility
+- Improved VariableAccessor API with type conversion
+- Enhanced SQL Server provider with async operations
 
 ---
 
-**Built with ❤️ for the .NET community**
+Built for the .NET community

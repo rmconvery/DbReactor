@@ -1,14 +1,17 @@
-﻿using DbReactor.Core.Abstractions;
+using DbReactor.Core.Abstractions;
 using DbReactor.Core.Execution;
 using DbReactor.Core.Models;
+using Microsoft.Data.SqlClient;
 using System;
 using System.Data;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DbReactor.MSSqlServer.Execution
 {
     /// <summary>
-    /// SQL Server specific script executor
+    /// SQL Server async-first script executor
     /// </summary>
     public class SqlServerScriptExecutor : IScriptExecutor
     {
@@ -19,43 +22,19 @@ namespace DbReactor.MSSqlServer.Execution
             _commandTimeout = commandTimeout;
         }
 
-        public MigrationResult Execute(IScript script, IConnectionManager connectionManager)
+        public async Task<MigrationResult> ExecuteAsync(IScript script, IConnectionManager connectionManager, CancellationToken cancellationToken = default)
         {
-            MigrationResult result = new MigrationResult
+            var result = new MigrationResult
             {
                 Script = script,
                 Successful = false
             };
 
-            DateTime startTime = DateTime.UtcNow;
+            var startTime = DateTime.UtcNow;
 
             try
             {
-                connectionManager.ExecuteCommandsWithManagedConnection(commandFactory =>
-                {
-                    string scriptContent = script.Script;
-
-                    if (string.IsNullOrWhiteSpace(scriptContent))
-                    {
-                        throw new InvalidOperationException("Script content is empty");
-                    }
-
-                    // Split script by GO statements (SQL Server batch separator)
-                    string[] batches = SplitScriptIntoBatches(scriptContent);
-
-                    foreach (string batch in batches)
-                    {
-                        if (string.IsNullOrWhiteSpace(batch)) continue;
-
-                        IDbCommand command = commandFactory();
-                        command.CommandText = batch.Trim();
-                        command.CommandTimeout = _commandTimeout;
-
-                        // Execute the batch - this handles both queries and non-queries
-                        ExecuteBatch(command);
-                    }
-                });
-
+                await ExecuteScriptAsync(script, connectionManager, cancellationToken);
                 result.Successful = true;
             }
             catch (Exception ex)
@@ -72,17 +51,42 @@ namespace DbReactor.MSSqlServer.Execution
             return result;
         }
 
-        public void VerifySchema(IConnectionManager connectionManager)
+        public async Task VerifySchemaAsync(IConnectionManager connectionManager, CancellationToken cancellationToken = default)
         {
-            connectionManager.ExecuteCommandsWithManagedConnection(commandFactory =>
+            await connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
             {
-                IDbCommand command = commandFactory();
-                command.CommandText = "SELECT @@VERSION";
-                command.ExecuteScalar();
-            });
+                using var command = new SqlCommand("SELECT @@VERSION", (SqlConnection)connection);
+                await command.ExecuteScalarAsync(cancellationToken);
+            }, cancellationToken);
         }
 
-        private void ExecuteBatch(IDbCommand command)
+        private async Task ExecuteScriptAsync(IScript script, IConnectionManager connectionManager, CancellationToken cancellationToken)
+        {
+            string scriptContent = script.Script;
+
+            if (string.IsNullOrWhiteSpace(scriptContent))
+            {
+                throw new InvalidOperationException("Script content is empty");
+            }
+
+            // Split script by GO statements (SQL Server batch separator)
+            string[] batches = SplitScriptIntoBatches(scriptContent);
+
+            await connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
+            {
+                foreach (string batch in batches)
+                {
+                    if (string.IsNullOrWhiteSpace(batch)) continue;
+
+                    using var command = new SqlCommand(batch.Trim(), (SqlConnection)connection);
+                    command.CommandTimeout = _commandTimeout;
+
+                    await ExecuteBatchAsync(command, cancellationToken);
+                }
+            }, cancellationToken);
+        }
+
+        private async Task ExecuteBatchAsync(SqlCommand command, CancellationToken cancellationToken)
         {
             string trimmedSql = command.CommandText.Trim().ToUpperInvariant();
 
@@ -90,28 +94,22 @@ namespace DbReactor.MSSqlServer.Execution
             if (IsQueryStatement(trimmedSql))
             {
                 // For queries, we execute but don't expect to process results in migration context
-                // This allows SELECT statements in scripts (like existence checks) without failing
-                using (IDataReader reader = command.ExecuteReader())
+                using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
                 {
-                    // We could optionally log result counts or validate conditions here
-                    // For now, just consume the results
-                    while (reader.Read())
-                    {
-                        // Results are consumed but not processed
-                    }
+                    // Results are consumed but not processed
                 }
             }
             else
             {
                 // For DDL/DML statements, use ExecuteNonQuery
-                command.ExecuteNonQuery();
+                await command.ExecuteNonQueryAsync(cancellationToken);
             }
         }
 
         private bool IsQueryStatement(string sql)
         {
             // Simple heuristic to detect SELECT statements
-            // This could be made more sophisticated if needed
             return sql.StartsWith("SELECT") ||
                    sql.StartsWith("WITH") ||  // CTEs
                    sql.StartsWith("EXEC") ||  // Could return results
@@ -121,9 +119,7 @@ namespace DbReactor.MSSqlServer.Execution
         private string[] SplitScriptIntoBatches(string script)
         {
             // Split on GO statements (case insensitive, must be on its own line)
-            // Also handle GO with optional line numbers (GO 5, etc.)
             return Regex.Split(script, @"^\s*GO\s*(\d+)?\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase);
         }
     }
 }
-

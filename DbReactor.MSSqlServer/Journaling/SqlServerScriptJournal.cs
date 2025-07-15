@@ -1,18 +1,21 @@
-﻿using DbReactor.Core.Abstractions;
+using DbReactor.Core.Abstractions;
 using DbReactor.Core.Constants;
 using DbReactor.Core.Execution;
 using DbReactor.Core.Implementations.Logging;
 using DbReactor.Core.Journaling;
 using DbReactor.Core.Logging;
 using DbReactor.Core.Models;
+using Microsoft.Data.SqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DbReactor.MSSqlServer.Journaling
 {
     /// <summary>
-    /// SQL Server implementation of migration journaling
+    /// SQL Server async-first implementation of migration journaling
     /// </summary>
     public sealed class SqlServerScriptJournal : IMigrationJournal
     {
@@ -38,192 +41,14 @@ namespace DbReactor.MSSqlServer.Journaling
             _connectionManager = connectionManager ?? throw new ArgumentNullException(nameof(connectionManager));
         }
 
-        public IEnumerable<MigrationJournalEntry> GetExecutedMigrations()
-        {
-            EnsureConnectionManager();
-            try
-            {
-                return _connectionManager.ExecuteCommandsWithManagedConnection(commandFactory =>
-                {
-                    IDbCommand command = commandFactory();
-                    command.CommandText = $@"
-                        SELECT [Id], [UpgradeScriptHash], [MigrationName], [DowngradeScript], [MigratedOn], [ExecutionTime]
-                        FROM {_fullTableName}
-                        ORDER BY [MigratedOn]";
-
-                    List<MigrationJournalEntry> journalEntries = new List<MigrationJournalEntry>();
-                    using (IDataReader reader = command.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            journalEntries.Add(new MigrationJournalEntry
-                            {
-                                Id = reader.GetInt32(0),
-                                UpgradeScriptHash = reader.GetString(1),
-                                MigrationName = reader.GetString(2),
-                                DowngradeScript = reader.IsDBNull(3) ? null : reader.GetString(3),
-                                MigratedOn = reader.GetDateTime(4),
-                                ExecutionTime = TimeSpan.FromMilliseconds(reader.GetInt64(5))
-                            });
-                        }
-                    }
-                    return journalEntries;
-                });
-            }
-            catch (Exception ex)
-            {
-                _logProvider.WriteError("Failed to get executed migrations from journal.", ex);
-                throw;
-            }
-        }
-
-        public void StoreExecutedMigration(IMigration migration, MigrationResult result)
-        {
-            if (migration == null) throw new ArgumentNullException(nameof(migration));
-            if (result == null) throw new ArgumentNullException(nameof(result));
-            EnsureConnectionManager();
-
-            IScript upgradeScript = migration.UpgradeScript;
-            if (upgradeScript == null || string.IsNullOrEmpty(upgradeScript.Hash))
-            {
-                _logProvider.WriteWarning("Attempted to store a migration with an empty hash. Operation skipped.");
-                return;
-            }
-
-            try
-            {
-                _connectionManager.ExecuteCommandsWithManagedConnection(commandFactory =>
-                {
-                    IDbCommand command = commandFactory();
-                    command.CommandText = $@"
-                        INSERT INTO {_fullTableName} 
-                        ([UpgradeScriptHash], [MigrationName], [DowngradeScript], [MigratedOn], [ExecutionTime])
-                        VALUES (@UpgradeScriptHash, @MigrationName, @DowngradeScript, @MigratedOn, @ExecutionTime)";
-
-                    AddParameter(command, "@UpgradeScriptHash", upgradeScript.Hash);
-                    AddParameter(command, "@MigrationName", migration.Name);
-                    AddParameter(command, "@DowngradeScript", migration.HasDowngrade ? migration.DowngradeScript.Script : null);
-                    AddParameter(command, "@MigratedOn", DateTime.UtcNow);
-                    AddParameter(command, "@ExecutionTime", (long)result.ExecutionTime.TotalMilliseconds);
-
-                    command.ExecuteNonQuery();
-                });
-            }
-            catch (Exception ex)
-            {
-                _logProvider.WriteError($"Failed to store executed migration '{migration.Name}'.", ex);
-                throw;
-            }
-        }
-
-        public void RemoveExecutedMigration(string upgradeScriptHash)
-        {
-            // Todo revist this. Using the hash for everything is going to fail eventually because it is not unique enough
-            if (upgradeScriptHash == null) throw new ArgumentNullException(nameof(upgradeScriptHash));
-            EnsureConnectionManager();
-
-            try
-            {
-                _connectionManager.ExecuteCommandsWithManagedConnection(commandFactory =>
-                {
-                    IDbCommand command = commandFactory();
-                    command.CommandText = $@"
-                        DELETE FROM {_fullTableName} 
-                        WHERE [UpgradeScriptHash] = @UpgradeScriptHash";
-
-                    AddParameter(command, "@UpgradeScriptHash", upgradeScriptHash);
-
-                    command.ExecuteNonQuery();
-                });
-            }
-            catch (Exception ex)
-            {
-                _logProvider.WriteError($"Failed to remove executed migration with hash '{upgradeScriptHash}'.", ex);
-                throw;
-            }
-        }
-
-        public bool HasBeenExecuted(IMigration migration)
-        {
-            if (migration == null) throw new ArgumentNullException(nameof(migration));
-            EnsureConnectionManager();
-
-            IScript upgradeScript = migration.UpgradeScript;
-            try
-            {
-                return _connectionManager.ExecuteCommandsWithManagedConnection(commandFactory =>
-                {
-                    IDbCommand command = commandFactory();
-                    command.CommandText = $@"
-                        SELECT COUNT(*) 
-                        FROM {_fullTableName} 
-                        WHERE [UpgradeScriptHash] = @UpgradeScriptHash";
-
-                    AddParameter(command, "@UpgradeScriptHash", upgradeScript?.Hash ?? string.Empty);
-
-                    int count = (int)command.ExecuteScalar();
-                    return count > 0;
-                });
-            }
-            catch (Exception ex)
-            {
-                _logProvider.WriteError($"Failed to check if migration '{migration.Name}' has been executed.", ex);
-                throw;
-            }
-        }
-
-        public void EnsureTableExists(IConnectionManager connectionManager)
+        public async Task EnsureTableExistsAsync(IConnectionManager connectionManager, CancellationToken cancellationToken = default)
         {
             try
             {
-                connectionManager.ExecuteCommandsWithManagedConnection(commandFactory =>
+                await connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
                 {
-                    // Check if table exists using parameterized query
-                    IDbCommand checkCommand = commandFactory();
-                    checkCommand.CommandText = @"
-                        SELECT COUNT(*) 
-                        FROM INFORMATION_SCHEMA.TABLES 
-                        WHERE TABLE_SCHEMA = @SchemaName 
-                        AND TABLE_NAME = @TableName";
-                    
-                    IDbDataParameter schemaParam = checkCommand.CreateParameter();
-                    schemaParam.ParameterName = "@SchemaName";
-                    schemaParam.Value = _schemaName;
-                    checkCommand.Parameters.Add(schemaParam);
-                    
-                    IDbDataParameter tableParam = checkCommand.CreateParameter();
-                    tableParam.ParameterName = "@TableName";
-                    tableParam.Value = _tableName;
-                    checkCommand.Parameters.Add(tableParam);
-
-                    bool tableExists = (int)checkCommand.ExecuteScalar() > 0;
-
-                    if (!tableExists)
-                    {
-                        // Create the journal table
-                        IDbCommand createCommand = commandFactory();
-                        createCommand.CommandText = $@"
-                            CREATE TABLE {_fullTableName} (
-                                [Id] INT IDENTITY(1,1) PRIMARY KEY,
-                                [UpgradeScriptHash] NVARCHAR(256) NOT NULL,
-                                [MigrationName] NVARCHAR(512) NOT NULL,
-                                [DowngradeScript] NVARCHAR(MAX) NULL,
-                                [MigratedOn] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-                                [ExecutionTime] BIGINT NOT NULL
-                            )";
-                        createCommand.ExecuteNonQuery();
-
-                        // Create unique index on UpgradeScriptHash
-                        IDbCommand indexCommand = commandFactory();
-                        string indexName = GetSafeIndexName(_tableName, "UpgradeScriptHash");
-                        indexCommand.CommandText = $@"
-                            CREATE UNIQUE INDEX {indexName} 
-                            ON {_fullTableName} ([UpgradeScriptHash])";
-                        indexCommand.ExecuteNonQuery();
-
-                        _logProvider.WriteInformation($"Created journal table {_fullTableName} and index {indexName}.");
-                    }
-                });
+                    await EnsureTableExistsInternalAsync((SqlConnection)connection, cancellationToken);
+                }, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -232,20 +57,176 @@ namespace DbReactor.MSSqlServer.Journaling
             }
         }
 
-        // Helper methods remain unchanged...
+        public async Task StoreExecutedMigrationAsync(IMigration migration, MigrationResult result, CancellationToken cancellationToken = default)
+        {
+            if (migration == null) throw new ArgumentNullException(nameof(migration));
+            if (result == null) throw new ArgumentNullException(nameof(result));
+            EnsureConnectionManager();
+
+            var upgradeScript = migration.UpgradeScript;
+            if (upgradeScript == null || string.IsNullOrEmpty(upgradeScript.Hash))
+            {
+                _logProvider.WriteWarning("Attempted to store a migration with an empty hash. Operation skipped.");
+                return;
+            }
+
+            try
+            {
+                await _connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
+                {
+                    using var command = new SqlCommand($@"
+                        INSERT INTO {_fullTableName} 
+                        ([UpgradeScriptHash], [MigrationName], [DowngradeScript], [MigratedOn], [ExecutionTime])
+                        VALUES (@UpgradeScriptHash, @MigrationName, @DowngradeScript, @MigratedOn, @ExecutionTime)", (SqlConnection)connection);
+
+                    command.Parameters.AddWithValue("@UpgradeScriptHash", upgradeScript.Hash);
+                    command.Parameters.AddWithValue("@MigrationName", migration.Name);
+                    command.Parameters.AddWithValue("@DowngradeScript", migration.HasDowngrade ? migration.DowngradeScript.Script : (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@MigratedOn", DateTime.UtcNow);
+                    command.Parameters.AddWithValue("@ExecutionTime", (long)result.ExecutionTime.TotalMilliseconds);
+
+                    await command.ExecuteNonQueryAsync(cancellationToken);
+                }, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logProvider.WriteError($"Failed to store executed migration '{migration.Name}'.", ex);
+                throw;
+            }
+        }
+
+        public async Task RemoveExecutedMigrationAsync(string upgradeScriptHash, CancellationToken cancellationToken = default)
+        {
+            if (upgradeScriptHash == null) throw new ArgumentNullException(nameof(upgradeScriptHash));
+            EnsureConnectionManager();
+
+            try
+            {
+                await _connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
+                {
+                    using var command = new SqlCommand($@"
+                        DELETE FROM {_fullTableName} 
+                        WHERE [UpgradeScriptHash] = @UpgradeScriptHash", (SqlConnection)connection);
+
+                    command.Parameters.AddWithValue("@UpgradeScriptHash", upgradeScriptHash);
+                    await command.ExecuteNonQueryAsync(cancellationToken);
+                }, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logProvider.WriteError($"Failed to remove executed migration with hash '{upgradeScriptHash}'.", ex);
+                throw;
+            }
+        }
+
+        public async Task<IEnumerable<MigrationJournalEntry>> GetExecutedMigrationsAsync(CancellationToken cancellationToken = default)
+        {
+            EnsureConnectionManager();
+            try
+            {
+                return await _connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
+                {
+                    using var command = new SqlCommand($@"
+                        SELECT [Id], [UpgradeScriptHash], [MigrationName], [DowngradeScript], [MigratedOn], [ExecutionTime]
+                        FROM {_fullTableName}
+                        ORDER BY [MigratedOn]", (SqlConnection)connection);
+
+                    var journalEntries = new List<MigrationJournalEntry>();
+                    using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                    
+                    while (await reader.ReadAsync(cancellationToken))
+                    {
+                        journalEntries.Add(new MigrationJournalEntry
+                        {
+                            Id = reader.GetInt32(0),
+                            UpgradeScriptHash = reader.GetString(1),
+                            MigrationName = reader.GetString(2),
+                            DowngradeScript = reader.IsDBNull(3) ? null : reader.GetString(3),
+                            MigratedOn = reader.GetDateTime(4),
+                            ExecutionTime = TimeSpan.FromMilliseconds(reader.GetInt64(5))
+                        });
+                    }
+                    
+                    return journalEntries;
+                }, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logProvider.WriteError("Failed to get executed migrations from journal.", ex);
+                throw;
+            }
+        }
+
+        public async Task<bool> HasBeenExecutedAsync(IMigration migration, CancellationToken cancellationToken = default)
+        {
+            if (migration == null) throw new ArgumentNullException(nameof(migration));
+            EnsureConnectionManager();
+
+            var upgradeScript = migration.UpgradeScript;
+            try
+            {
+                return await _connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
+                {
+                    using var command = new SqlCommand($@"
+                        SELECT COUNT(*) 
+                        FROM {_fullTableName} 
+                        WHERE [UpgradeScriptHash] = @UpgradeScriptHash", (SqlConnection)connection);
+
+                    command.Parameters.AddWithValue("@UpgradeScriptHash", upgradeScript?.Hash ?? string.Empty);
+                    var count = (int)await command.ExecuteScalarAsync(cancellationToken);
+                    return count > 0;
+                }, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logProvider.WriteError($"Failed to check if migration '{migration.Name}' has been executed.", ex);
+                throw;
+            }
+        }
+
+        private async Task EnsureTableExistsInternalAsync(SqlConnection connection, CancellationToken cancellationToken)
+        {
+            // Check if table exists
+            using var checkCommand = new SqlCommand(@"
+                SELECT COUNT(*) 
+                FROM INFORMATION_SCHEMA.TABLES 
+                WHERE TABLE_SCHEMA = @SchemaName 
+                AND TABLE_NAME = @TableName", connection);
+
+            checkCommand.Parameters.AddWithValue("@SchemaName", _schemaName);
+            checkCommand.Parameters.AddWithValue("@TableName", _tableName);
+
+            var tableExists = (int)await checkCommand.ExecuteScalarAsync(cancellationToken) > 0;
+
+            if (!tableExists)
+            {
+                // Create the journal table
+                using var createCommand = new SqlCommand($@"
+                    CREATE TABLE {_fullTableName} (
+                        [Id] INT IDENTITY(1,1) PRIMARY KEY,
+                        [UpgradeScriptHash] NVARCHAR(256) NOT NULL,
+                        [MigrationName] NVARCHAR(512) NOT NULL,
+                        [DowngradeScript] NVARCHAR(MAX) NULL,
+                        [MigratedOn] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+                        [ExecutionTime] BIGINT NOT NULL
+                    )", connection);
+                await createCommand.ExecuteNonQueryAsync(cancellationToken);
+
+                // Create unique index on UpgradeScriptHash
+                var indexName = GetSafeIndexName(_tableName, "UpgradeScriptHash");
+                using var indexCommand = new SqlCommand($@"
+                    CREATE UNIQUE INDEX {indexName} 
+                    ON {_fullTableName} ([UpgradeScriptHash])", connection);
+                await indexCommand.ExecuteNonQueryAsync(cancellationToken);
+
+                _logProvider.WriteInformation($"Created journal table {_fullTableName} and index {indexName}.");
+            }
+        }
 
         private void EnsureConnectionManager()
         {
             if (_connectionManager == null)
                 throw new InvalidOperationException("ConnectionManager must be set before using the journal. Call SetConnectionManager() first.");
-        }
-
-        private static void AddParameter(IDbCommand command, string name, object value)
-        {
-            IDbDataParameter param = command.CreateParameter();
-            param.ParameterName = name;
-            param.Value = value ?? DBNull.Value;
-            command.Parameters.Add(param);
         }
 
         private static string SanitizeIdentifier(string identifier)

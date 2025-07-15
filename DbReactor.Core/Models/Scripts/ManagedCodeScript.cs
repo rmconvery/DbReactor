@@ -1,5 +1,6 @@
 using DbReactor.Core.Abstractions;
 using DbReactor.Core.Execution;
+using DbReactor.Core.Models.Contexts;
 using DbReactor.Core.Utilities;
 using System;
 using System.Collections.Generic;
@@ -42,7 +43,8 @@ namespace DbReactor.Core.Models.Scripts
         /// </summary>
         public void GenerateUpgradeScript(IConnectionManager connectionManager)
         {
-            _generatedScript = _codeScript.GetUpgradeScript(connectionManager);
+            var context = new CodeScriptContext(connectionManager);
+            _generatedScript = _codeScript.GetUpgradeScript(context);
         }
 
         /// <summary>
@@ -50,7 +52,8 @@ namespace DbReactor.Core.Models.Scripts
         /// </summary>
         public void GenerateUpgradeScript(IConnectionManager connectionManager, IReadOnlyDictionary<string, string> variables)
         {
-            _generatedScript = _codeScript.GetUpgradeScript(connectionManager, variables);
+            var context = new CodeScriptContext(connectionManager, variables);
+            _generatedScript = _codeScript.GetUpgradeScript(context);
         }
 
         /// <summary>
@@ -58,7 +61,8 @@ namespace DbReactor.Core.Models.Scripts
         /// </summary>
         public string GenerateDowngradeScript(IConnectionManager connectionManager)
         {
-            return _codeScript.GetDowngradeScript(connectionManager);
+            var context = new CodeScriptContext(connectionManager);
+            return _codeScript.GetDowngradeScript(context);
         }
 
         /// <summary>
@@ -66,7 +70,8 @@ namespace DbReactor.Core.Models.Scripts
         /// </summary>
         public string GenerateDowngradeScript(IConnectionManager connectionManager, IReadOnlyDictionary<string, string> variables)
         {
-            return _codeScript.GetDowngradeScript(connectionManager, variables);
+            var context = new CodeScriptContext(connectionManager, variables);
+            return _codeScript.GetDowngradeScript(context);
         }
 
     }

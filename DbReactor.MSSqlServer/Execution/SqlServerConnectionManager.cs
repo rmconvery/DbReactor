@@ -1,87 +1,43 @@
-﻿namespace DbReactor.MSSqlServer.Execution
+using DbReactor.Core.Execution;
+using Microsoft.Data.SqlClient;
+using System;
+using System.Data;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution
 {
-    using global::DbReactor.Core.Execution;
-    using Microsoft.Data.SqlClient;
-    using System;
-    using System.Data;
-
-    namespace DbReactor.MSSqlServer.Implementations.Execution
+    /// <summary>
+    /// SQL Server async-first implementation of IConnectionManager
+    /// </summary>
+    public class SqlServerConnectionManager : IConnectionManager
     {
-        /// <summary>
-        /// SQL Server implementation of IConnectionManager
-        /// </summary>
-        public class SqlServerConnectionManager : IConnectionManager
+        private readonly string _connectionString;
+
+        public SqlServerConnectionManager(string connectionString)
         {
-            private readonly string _connectionString;
+            _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+        }
 
-            public SqlServerConnectionManager(string connectionString)
-            {
-                _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
-            }
+        public async Task<IDbConnection> CreateConnectionAsync(CancellationToken cancellationToken = default)
+        {
+            var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
+            return connection;
+        }
 
-            public IDbConnection CreateConnection()
-            {
-                return new SqlConnection(_connectionString);
-            }
+        public async Task ExecuteWithManagedConnectionAsync(Func<IDbConnection, Task> operation, CancellationToken cancellationToken = default)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
+            await operation(connection);
+        }
 
-            public void ExecuteCommandsWithManagedConnection(Action<Func<IDbCommand>> action)
-            {
-                using (IDbConnection connection = CreateConnection())
-                {
-                    connection.Open();
-                    action(() => {
-                        var command = connection.CreateCommand();
-                        // Note: Commands created this way should be disposed by the caller
-                        // Consider using ExecuteWithManagedConnection for automatic disposal
-                        return command;
-                    });
-                }
-            }
-
-            public T ExecuteCommandsWithManagedConnection<T>(Func<Func<IDbCommand>, T> action)
-            {
-                using (IDbConnection connection = CreateConnection())
-                {
-                    connection.Open();
-                    return action(() => {
-                        var command = connection.CreateCommand();
-                        // Note: Commands created this way should be disposed by the caller
-                        // Consider using ExecuteWithManagedConnection for automatic disposal
-                        return command;
-                    });
-                }
-            }
-
-            /// <summary>
-            /// Executes an operation with a managed connection and command, ensuring proper disposal
-            /// </summary>
-            public void ExecuteWithManagedConnection(Action<IDbConnection, IDbCommand> operation)
-            {
-                using (IDbConnection connection = CreateConnection())
-                {
-                    connection.Open();
-                    using (IDbCommand command = connection.CreateCommand())
-                    {
-                        operation(connection, command);
-                    }
-                }
-            }
-
-            /// <summary>
-            /// Executes an operation with a managed connection and command, ensuring proper disposal
-            /// </summary>
-            public T ExecuteWithManagedConnection<T>(Func<IDbConnection, IDbCommand, T> operation)
-            {
-                using (IDbConnection connection = CreateConnection())
-                {
-                    connection.Open();
-                    using (IDbCommand command = connection.CreateCommand())
-                    {
-                        return operation(connection, command);
-                    }
-                }
-            }
+        public async Task<T> ExecuteWithManagedConnectionAsync<T>(Func<IDbConnection, Task<T>> operation, CancellationToken cancellationToken = default)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
+            return await operation(connection);
         }
     }
-
 }

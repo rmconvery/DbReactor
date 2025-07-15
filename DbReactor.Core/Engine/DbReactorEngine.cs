@@ -3,6 +3,8 @@ using DbReactor.Core.Configuration;
 using DbReactor.Core.Models;
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DbReactor.Core.Engine
 {
@@ -29,34 +31,34 @@ namespace DbReactor.Core.Engine
             _orchestrator = new MigrationOrchestrator(configuration, executionService, _filteringService);
         }
 
-        public DbReactorResult Run()
+        public async Task<DbReactorResult> RunAsync(CancellationToken cancellationToken = default)
         {
-            return _orchestrator.ExecuteMigrations();
+            return await _orchestrator.ExecuteMigrationsAsync(cancellationToken);
         }
 
-        public DbReactorResult ApplyUpgrades()
+        public async Task<DbReactorResult> ApplyUpgradesAsync(CancellationToken cancellationToken = default)
         {
-            return _orchestrator.ApplyUpgrades();
+            return await _orchestrator.ApplyUpgradesAsync(cancellationToken);
         }
 
-        public DbReactorResult ApplyDowngrades()
+        public async Task<DbReactorResult> ApplyDowngradesAsync(CancellationToken cancellationToken = default)
         {
-            return _orchestrator.ApplyDowngrades();
+            return await _orchestrator.ApplyDowngradesAsync(cancellationToken);
         }
 
-        public bool HasPendingUpgrades()
+        public async Task<bool> HasPendingUpgradesAsync(CancellationToken cancellationToken = default)
         {
-            return _filteringService.HasPendingUpgrades();
+            return await _filteringService.HasPendingUpgradesAsync(cancellationToken);
         }
 
-        public IEnumerable<IMigration> GetPendingUpgrades()
+        public async Task<IEnumerable<IMigration>> GetPendingUpgradesAsync(CancellationToken cancellationToken = default)
         {
-            return _filteringService.GetPendingUpgrades();
+            return await _filteringService.GetPendingUpgradesAsync(cancellationToken);
         }
 
-        public IEnumerable<IMigration> GetAppliedUpgrades()
+        public async Task<IEnumerable<IMigration>> GetAppliedUpgradesAsync(CancellationToken cancellationToken = default)
         {
-            return _filteringService.GetAppliedUpgrades();
+            return await _filteringService.GetAppliedUpgradesAsync(cancellationToken);
         }
     }
 }
