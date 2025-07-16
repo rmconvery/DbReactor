@@ -5,26 +5,6 @@ namespace DbReactor.Core.Constants
     /// </summary>
     public static class DbReactorConstants
     {
-        /// <summary>
-        /// Default values for configuration
-        /// </summary>
-        public static class Defaults
-        {
-            /// <summary>
-            /// Default command timeout in seconds
-            /// </summary>
-            public const int CommandTimeoutSeconds = 30;
-
-            /// <summary>
-            /// Default journal table name
-            /// </summary>
-            public const string JournalTableName = "MigrationJournal";
-
-            /// <summary>
-            /// Default schema name for SQL Server
-            /// </summary>
-            public const string DefaultSchemaName = "dbo";
-        }
 
         /// <summary>
         /// File extensions supported by the system
@@ -97,14 +77,14 @@ namespace DbReactor.Core.Constants
             public const string DowngradeScriptContentEmpty = "Downgrade script content is empty";
             public const string MigrationDoesNotSupportDowngrade = "Migration {0} does not support downgrade.";
             public const string ConfigurationValidationFailed = "Configuration validation failed:\n{0}";
-            
+
             // Execution errors
             public const string MigrationExecutionFailed = "Failed to execute migration script '{0}': {1}";
             public const string DowngradeExecutionFailed = "Failed to execute downgrade script '{0}': {1}";
             public const string DatabaseConnectionFailed = "Failed to connect to database: {0}";
             public const string JournalTableCreationFailed = "Failed to create migration journal table: {0}";
             public const string ScriptDiscoveryFailed = "Failed to discover scripts: {0}";
-            
+
             // Validation errors
             public const string InvalidScriptContent = "Script content is invalid or contains potential security risks";
             public const string UnsupportedDatabaseProvider = "Database provider '{0}' is not supported";

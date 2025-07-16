@@ -1,5 +1,5 @@
 using DbReactor.Core.Abstractions;
-using DbReactor.Core.Constants;
+using DbReactor.MSSqlServer.Constants;
 using DbReactor.Core.Execution;
 using DbReactor.Core.Implementations.Logging;
 using DbReactor.Core.Journaling;
@@ -8,7 +8,6 @@ using DbReactor.Core.Models;
 using Microsoft.Data.SqlClient;
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -27,11 +26,11 @@ namespace DbReactor.MSSqlServer.Journaling
 
         public SqlServerScriptJournal(
             string schemaName = "dbo",
-            string tableName = "MigrationJournal",
+            string tableName = "__migration_journal",
             ILogProvider logProvider = null)
         {
-            _schemaName = SanitizeIdentifier(schemaName ?? DbReactorConstants.Defaults.DefaultSchemaName);
-            _tableName = SanitizeIdentifier(tableName ?? DbReactorConstants.Defaults.JournalTableName);
+            _schemaName = SanitizeIdentifier(schemaName ?? SqlServerConstants.Defaults.SchemaName);
+            _tableName = SanitizeIdentifier(tableName ?? SqlServerConstants.Defaults.JournalTableName);
             _fullTableName = $"[{_schemaName}].[{_tableName}]";
             _logProvider = logProvider ?? new NullLogProvider();
         }
@@ -63,7 +62,7 @@ namespace DbReactor.MSSqlServer.Journaling
             if (result == null) throw new ArgumentNullException(nameof(result));
             EnsureConnectionManager();
 
-            var upgradeScript = migration.UpgradeScript;
+            IScript upgradeScript = migration.UpgradeScript;
             if (upgradeScript == null || string.IsNullOrEmpty(upgradeScript.Hash))
             {
                 _logProvider.WriteWarning("Attempted to store a migration with an empty hash. Operation skipped.");
@@ -74,7 +73,7 @@ namespace DbReactor.MSSqlServer.Journaling
             {
                 await _connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
                 {
-                    using var command = new SqlCommand($@"
+                    using SqlCommand command = new SqlCommand($@"
                         INSERT INTO {_fullTableName} 
                         ([UpgradeScriptHash], [MigrationName], [DowngradeScript], [MigratedOn], [ExecutionTime])
                         VALUES (@UpgradeScriptHash, @MigrationName, @DowngradeScript, @MigratedOn, @ExecutionTime)", (SqlConnection)connection);
@@ -104,7 +103,7 @@ namespace DbReactor.MSSqlServer.Journaling
             {
                 await _connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
                 {
-                    using var command = new SqlCommand($@"
+                    using SqlCommand command = new SqlCommand($@"
                         DELETE FROM {_fullTableName} 
                         WHERE [UpgradeScriptHash] = @UpgradeScriptHash", (SqlConnection)connection);
 
@@ -126,14 +125,14 @@ namespace DbReactor.MSSqlServer.Journaling
             {
                 return await _connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
                 {
-                    using var command = new SqlCommand($@"
+                    using SqlCommand command = new SqlCommand($@"
                         SELECT [Id], [UpgradeScriptHash], [MigrationName], [DowngradeScript], [MigratedOn], [ExecutionTime]
                         FROM {_fullTableName}
                         ORDER BY [MigratedOn]", (SqlConnection)connection);
 
-                    var journalEntries = new List<MigrationJournalEntry>();
-                    using var reader = await command.ExecuteReaderAsync(cancellationToken);
-                    
+                    List<MigrationJournalEntry> journalEntries = new List<MigrationJournalEntry>();
+                    using SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
+
                     while (await reader.ReadAsync(cancellationToken))
                     {
                         journalEntries.Add(new MigrationJournalEntry
@@ -146,7 +145,7 @@ namespace DbReactor.MSSqlServer.Journaling
                             ExecutionTime = TimeSpan.FromMilliseconds(reader.GetInt64(5))
                         });
                     }
-                    
+
                     return journalEntries;
                 }, cancellationToken);
             }
@@ -162,18 +161,18 @@ namespace DbReactor.MSSqlServer.Journaling
             if (migration == null) throw new ArgumentNullException(nameof(migration));
             EnsureConnectionManager();
 
-            var upgradeScript = migration.UpgradeScript;
+            IScript upgradeScript = migration.UpgradeScript;
             try
             {
                 return await _connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
                 {
-                    using var command = new SqlCommand($@"
+                    using SqlCommand command = new SqlCommand($@"
                         SELECT COUNT(*) 
                         FROM {_fullTableName} 
                         WHERE [UpgradeScriptHash] = @UpgradeScriptHash", (SqlConnection)connection);
 
                     command.Parameters.AddWithValue("@UpgradeScriptHash", upgradeScript?.Hash ?? string.Empty);
-                    var count = (int)await command.ExecuteScalarAsync(cancellationToken);
+                    int count = (int)await command.ExecuteScalarAsync(cancellationToken);
                     return count > 0;
                 }, cancellationToken);
             }
@@ -187,7 +186,7 @@ namespace DbReactor.MSSqlServer.Journaling
         private async Task EnsureTableExistsInternalAsync(SqlConnection connection, CancellationToken cancellationToken)
         {
             // Check if table exists
-            using var checkCommand = new SqlCommand(@"
+            using SqlCommand checkCommand = new SqlCommand(@"
                 SELECT COUNT(*) 
                 FROM INFORMATION_SCHEMA.TABLES 
                 WHERE TABLE_SCHEMA = @SchemaName 
@@ -196,12 +195,12 @@ namespace DbReactor.MSSqlServer.Journaling
             checkCommand.Parameters.AddWithValue("@SchemaName", _schemaName);
             checkCommand.Parameters.AddWithValue("@TableName", _tableName);
 
-            var tableExists = (int)await checkCommand.ExecuteScalarAsync(cancellationToken) > 0;
+            bool tableExists = (int)await checkCommand.ExecuteScalarAsync(cancellationToken) > 0;
 
             if (!tableExists)
             {
                 // Create the journal table
-                using var createCommand = new SqlCommand($@"
+                using SqlCommand createCommand = new SqlCommand($@"
                     CREATE TABLE {_fullTableName} (
                         [Id] INT IDENTITY(1,1) PRIMARY KEY,
                         [UpgradeScriptHash] NVARCHAR(256) NOT NULL,
@@ -213,8 +212,8 @@ namespace DbReactor.MSSqlServer.Journaling
                 await createCommand.ExecuteNonQueryAsync(cancellationToken);
 
                 // Create unique index on UpgradeScriptHash
-                var indexName = GetSafeIndexName(_tableName, "UpgradeScriptHash");
-                using var indexCommand = new SqlCommand($@"
+                string indexName = GetSafeIndexName(_tableName, "UpgradeScriptHash");
+                using SqlCommand indexCommand = new SqlCommand($@"
                     CREATE UNIQUE INDEX {indexName} 
                     ON {_fullTableName} ([UpgradeScriptHash])", connection);
                 await indexCommand.ExecuteNonQueryAsync(cancellationToken);

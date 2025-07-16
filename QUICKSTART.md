@@ -1,6 +1,6 @@
 # DbReactor.Core - Quick Start Guide
 
-Get your database migrations running in 5 minutes! 🚀
+Get your database migrations running in 5 minutes!
 
 ## 1. Install Packages
 
@@ -154,6 +154,23 @@ var config = new DbReactorConfiguration()
     });
 ```
 
+### Custom Migration Journal Table
+```csharp
+var config = new DbReactorConfiguration()
+    .UseSqlServer(connectionString, 
+        journalSchema: "migrations",      // Custom schema
+        journalTable: "MigrationHistory") // Custom table name (default: __migration_journal)
+    .UseConsoleLogging()
+    .UseStandardFolderStructure(typeof(Program).Assembly);
+
+// Or configure individual components
+var config = new DbReactorConfiguration()
+    .UseSqlServerConnection(connectionString)
+    .UseSqlServerExecutor()
+    .UseSqlServerJournal("custom_schema", "custom_migration_table")
+    .UseStandardFolderStructure(typeof(Program).Assembly);
+```
+
 ### Use Variables in SQL
 ```sql
 -- In your SQL files
@@ -230,4 +247,4 @@ config.UseEmbeddedScriptsFromFolder(assembly, "YourApp.Scripts", "upgrades");
 
 ---
 
-**That's it!** You now have a working database migration system. 🎉
+**That's it!** You now have a working database migration system.

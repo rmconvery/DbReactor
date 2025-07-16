@@ -12,10 +12,10 @@ class Program
 
 
         DbReactorConfiguration config = new DbReactorConfiguration()
-            .UseSqlServer(connectionString)
+            .UseSqlServer(connectionString, commandTimeout: TimeSpan.FromSeconds(60))
             .UseConsoleLogging()
             .CreateDatabaseIfNotExists()
-            .UseStandardFolderStructure(typeof(Program).Assembly, "upgrades", "downgrades")
+            .UseStandardFolderStructure(typeof(Program).Assembly)
             .UseCodeScripts(typeof(Program).Assembly)
             .UseVariables(new Dictionary<string, string>
             {

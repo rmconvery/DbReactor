@@ -43,17 +43,6 @@ namespace DbReactor.Core.Extensions
             return config;
         }
 
-        /// <summary>
-        /// Sets the command timeout for script execution
-        /// </summary>
-        /// <param name="config">The configuration to extend</param>
-        /// <param name="timeoutSeconds">Timeout in seconds</param>
-        /// <returns>The configuration for method chaining</returns>
-        public static DbReactorConfiguration UseCommandTimeout(this DbReactorConfiguration config, int timeoutSeconds)
-        {
-            config.CommandTimeoutSeconds = timeoutSeconds;
-            return config;
-        }
 
         /// <summary>
         /// Enables variable substitution in migration scripts

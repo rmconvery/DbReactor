@@ -1,6 +1,7 @@
 using DbReactor.Core.Abstractions;
 using DbReactor.Core.Execution;
 using DbReactor.Core.Models;
+using DbReactor.MSSqlServer.Constants;
 using Microsoft.Data.SqlClient;
 using System;
 using System.Data;
@@ -15,9 +16,20 @@ namespace DbReactor.MSSqlServer.Execution
     /// </summary>
     public class SqlServerScriptExecutor : IScriptExecutor
     {
-        private readonly int _commandTimeout;
+        private readonly TimeSpan _commandTimeout;
 
-        public SqlServerScriptExecutor(int commandTimeout = 30)
+        /// <summary>
+        /// Creates a new SQL Server script executor with default timeout
+        /// </summary>
+        public SqlServerScriptExecutor() : this(SqlServerConstants.Defaults.CommandTimeout)
+        {
+        }
+
+        /// <summary>
+        /// Creates a new SQL Server script executor with specified timeout
+        /// </summary>
+        /// <param name="commandTimeout">Command timeout for SQL operations</param>
+        public SqlServerScriptExecutor(TimeSpan commandTimeout)
         {
             _commandTimeout = commandTimeout;
         }
@@ -79,7 +91,7 @@ namespace DbReactor.MSSqlServer.Execution
                     if (string.IsNullOrWhiteSpace(batch)) continue;
 
                     using var command = new SqlCommand(batch.Trim(), (SqlConnection)connection);
-                    command.CommandTimeout = _commandTimeout;
+                    command.CommandTimeout = (int)_commandTimeout.TotalSeconds;
 
                     await ExecuteBatchAsync(command, cancellationToken);
                 }

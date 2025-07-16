@@ -8,6 +8,11 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <None Remove="Scripts\downgrades\20250714\M004_CreateOrdersTable.sql" />
+    <None Remove="Scripts\upgrades\20250714\M004_CreateOrdersTable.sql" />
+  </ItemGroup>
+
   <!-- Mixed script structure with SQL and code scripts -->
 
   <ItemGroup>

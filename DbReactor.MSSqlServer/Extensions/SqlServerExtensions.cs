@@ -1,8 +1,10 @@
 using DbReactor.Core.Configuration;
+using DbReactor.MSSqlServer.Constants;
 using DbReactor.MSSqlServer.Execution;
 using DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution;
 using DbReactor.MSSqlServer.Journaling;
 using DbReactor.MSSqlServer.Provisioning;
+using System;
 
 namespace DbReactor.MSSqlServer.Extensions
 {
@@ -18,15 +20,15 @@ namespace DbReactor.MSSqlServer.Extensions
         /// </summary>
         /// <param name="config">The configuration to extend</param>
         /// <param name="connectionString">SQL Server connection string</param>
-        /// <param name="commandTimeoutSeconds">Command timeout in seconds (default: 30)</param>
+        /// <param name="commandTimeout">Command timeout (default: 30 seconds)</param>
         /// <param name="journalSchema">Schema for migration journal table (default: dbo)</param>
-        /// <param name="journalTable">Migration journal table name (default: MigrationJournal)</param>
+        /// <param name="journalTable">Migration journal table name (default: __migration_journal)</param>
         /// <returns>The configuration for method chaining</returns>
-        public static DbReactorConfiguration UseSqlServer(this DbReactorConfiguration config, string connectionString, int commandTimeoutSeconds = 30, string journalSchema = "dbo", string journalTable = "MigrationJournal")
+        public static DbReactorConfiguration UseSqlServer(this DbReactorConfiguration config, string connectionString, TimeSpan? commandTimeout = null, string journalSchema = SqlServerConstants.Defaults.SchemaName, string journalTable = SqlServerConstants.Defaults.JournalTableName)
         {
             return config
                 .UseSqlServerConnection(connectionString)
-                .UseSqlServerExecutor(commandTimeoutSeconds)
+                .UseSqlServerExecutor(commandTimeout ?? SqlServerConstants.Defaults.CommandTimeout)
                 .UseSqlServerJournal(journalSchema, journalTable)
                 .UseSqlServerProvisioner(connectionString);
         }
@@ -51,11 +53,11 @@ namespace DbReactor.MSSqlServer.Extensions
         /// Configures SQL Server script executor
         /// </summary>
         /// <param name="config">The configuration to extend</param>
-        /// <param name="commandTimeoutSeconds">Command timeout in seconds (default: 30)</param>
+        /// <param name="commandTimeout">Command timeout (default: 30 seconds)</param>
         /// <returns>The configuration for method chaining</returns>
-        public static DbReactorConfiguration UseSqlServerExecutor(this DbReactorConfiguration config, int commandTimeoutSeconds = 30)
+        public static DbReactorConfiguration UseSqlServerExecutor(this DbReactorConfiguration config, TimeSpan? commandTimeout = null)
         {
-            config.ScriptExecutor = new SqlServerScriptExecutor(commandTimeoutSeconds);
+            config.ScriptExecutor = new SqlServerScriptExecutor(commandTimeout ?? SqlServerConstants.Defaults.CommandTimeout);
             return config;
         }
 
@@ -64,9 +66,9 @@ namespace DbReactor.MSSqlServer.Extensions
         /// </summary>
         /// <param name="config">The configuration to extend</param>
         /// <param name="schemaName">Schema name for journal table (default: dbo)</param>
-        /// <param name="tableName">Journal table name (default: MigrationJournal)</param>
+        /// <param name="tableName">Journal table name (default: __migration_journal)</param>
         /// <returns>The configuration for method chaining</returns>
-        public static DbReactorConfiguration UseSqlServerJournal(this DbReactorConfiguration config, string schemaName = "dbo", string tableName = "MigrationJournal")
+        public static DbReactorConfiguration UseSqlServerJournal(this DbReactorConfiguration config, string schemaName = SqlServerConstants.Defaults.SchemaName, string tableName = SqlServerConstants.Defaults.JournalTableName)
         {
             var journal = new SqlServerScriptJournal(schemaName, tableName);
             if (config.ConnectionManager != null)
@@ -86,6 +88,19 @@ namespace DbReactor.MSSqlServer.Extensions
         public static DbReactorConfiguration UseSqlServerProvisioner(this DbReactorConfiguration config, string connectionString)
         {
             config.DatabaseProvisioner = new SqlServerDatabaseProvisioner(connectionString, config.LogProvider);
+            return config;
+        }
+
+        /// <summary>
+        /// Configures the command timeout for SQL Server operations
+        /// </summary>
+        /// <param name="config">The configuration to extend</param>
+        /// <param name="timeout">Command timeout</param>
+        /// <returns>The configuration for method chaining</returns>
+        public static DbReactorConfiguration UseSqlServerCommandTimeout(this DbReactorConfiguration config, TimeSpan timeout)
+        {
+            // Update the existing executor with the new timeout
+            config.ScriptExecutor = new SqlServerScriptExecutor(timeout);
             return config;
         }
 

@@ -64,10 +64,6 @@ namespace DbReactor.Core.Configuration
         /// </summary>
         public bool AllowDowngrades { get; set; } = false;
 
-        /// <summary>
-        /// Command timeout in seconds for script execution (default: 30)
-        /// </summary>
-        public int CommandTimeoutSeconds { get; set; } = DbReactorConstants.Defaults.CommandTimeoutSeconds;
 
         #endregion
 
