@@ -17,6 +17,7 @@ namespace DbReactor.Core.Engine
         private readonly DbReactorConfiguration _configuration;
         private readonly ScriptExecutionService _executionService;
         private readonly MigrationFilteringService _filteringService;
+        private readonly RunPreviewExecutionService _runPreviewService;
 
         public MigrationOrchestrator(
             DbReactorConfiguration configuration,
@@ -26,6 +27,7 @@ namespace DbReactor.Core.Engine
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _executionService = executionService ?? throw new ArgumentNullException(nameof(executionService));
             _filteringService = filteringService ?? throw new ArgumentNullException(nameof(filteringService));
+            _runPreviewService = new RunPreviewExecutionService(configuration, filteringService);
         }
 
         public async Task<DbReactorResult> ExecuteMigrationsAsync(CancellationToken cancellationToken = default)
@@ -209,6 +211,17 @@ namespace DbReactor.Core.Engine
                 result.ErrorMessage = ex.Message;
                 _configuration.LogProvider?.WriteError($"Database downgrade failed: {ex.Message}");
             }
+
+            return result;
+        }
+
+        public async Task<DbReactorPreviewResult> RunPreviewAsync(CancellationToken cancellationToken = default)
+        {
+            _configuration.LogProvider?.WriteInformation("Starting Preview for migrations...");
+
+            DbReactorPreviewResult result = await _runPreviewService.RunPreviewAsync(cancellationToken);
+
+            _configuration.LogProvider?.WriteInformation($"Preview completed. {result.Summary}");
 
             return result;
         }

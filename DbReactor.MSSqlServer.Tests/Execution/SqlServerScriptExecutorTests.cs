@@ -7,11 +7,7 @@ using FluentAssertions;
 using FluentAssertions.Execution;
 using Microsoft.Data.SqlClient;
 using Moq;
-using NUnit.Framework;
-using System;
 using System.Data;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace DbReactor.MSSqlServer.Tests.Execution;
 
@@ -32,7 +28,7 @@ public class SqlServerScriptExecutorTests
     public void Constructor_WithDefaultTimeout_ShouldCreateExecutor()
     {
         // When
-        var executor = new SqlServerScriptExecutor();
+        SqlServerScriptExecutor executor = new SqlServerScriptExecutor();
 
         // Then
         using (new AssertionScope())
@@ -45,10 +41,10 @@ public class SqlServerScriptExecutorTests
     public void Constructor_WithCustomTimeout_ShouldCreateExecutor()
     {
         // Given
-        var customTimeout = 60;
+        int customTimeout = 60;
 
         // When
-        var executor = new SqlServerScriptExecutor(customTimeout);
+        SqlServerScriptExecutor executor = new SqlServerScriptExecutor(TimeSpan.FromSeconds(customTimeout));
 
         // Then
         using (new AssertionScope())
@@ -62,11 +58,11 @@ public class SqlServerScriptExecutorTests
     {
         // Given
         IScript nullScript = null!;
-        var mockConnectionManager = new Mock<IConnectionManager>();
-        var cancellationToken = CancellationToken.None;
+        Mock<IConnectionManager> mockConnectionManager = new Mock<IConnectionManager>();
+        CancellationToken cancellationToken = CancellationToken.None;
 
         // When
-        var result = await _executor.ExecuteAsync(nullScript, mockConnectionManager.Object, cancellationToken);
+        MigrationResult result = await _executor.ExecuteAsync(nullScript, mockConnectionManager.Object, cancellationToken);
 
         // Then
         using (new AssertionScope())
@@ -114,10 +110,10 @@ public class SqlServerScriptExecutorTests
     public async Task ExecuteAsync_WithConnectionManagerException_ShouldReturnFailedResult()
     {
         // Given
-        var script = new GenericScript("test.sql", "SELECT 1");
-        var expectedException = new InvalidOperationException("Connection failed");
-        var mockConnectionManager = new Mock<IConnectionManager>();
-        var cancellationToken = CancellationToken.None;
+        GenericScript script = new GenericScript("test.sql", "SELECT 1");
+        InvalidOperationException expectedException = new InvalidOperationException("Connection failed");
+        Mock<IConnectionManager> mockConnectionManager = new Mock<IConnectionManager>();
+        CancellationToken cancellationToken = CancellationToken.None;
 
         mockConnectionManager.Setup(cm => cm.ExecuteWithManagedConnectionAsync(
             It.IsAny<Func<IDbConnection, Task>>(),
@@ -125,7 +121,7 @@ public class SqlServerScriptExecutorTests
             .ThrowsAsync(expectedException);
 
         // When
-        var result = await _executor.ExecuteAsync(script, mockConnectionManager.Object, cancellationToken);
+        MigrationResult result = await _executor.ExecuteAsync(script, mockConnectionManager.Object, cancellationToken);
 
         // Then
         using (new AssertionScope())
@@ -143,9 +139,9 @@ public class SqlServerScriptExecutorTests
     public async Task VerifySchemaAsync_WithConnectionManagerException_ShouldThrow()
     {
         // Given
-        var expectedException = new InvalidOperationException("Connection failed");
-        var mockConnectionManager = new Mock<IConnectionManager>();
-        var cancellationToken = CancellationToken.None;
+        InvalidOperationException expectedException = new InvalidOperationException("Connection failed");
+        Mock<IConnectionManager> mockConnectionManager = new Mock<IConnectionManager>();
+        CancellationToken cancellationToken = CancellationToken.None;
 
         mockConnectionManager.Setup(cm => cm.ExecuteWithManagedConnectionAsync(
             It.IsAny<Func<IDbConnection, Task>>(),
@@ -168,15 +164,15 @@ public class SqlServerScriptExecutorTests
     public async Task ExecuteAsync_WithValidConnectionAndScript_ShouldExecuteSuccessfully()
     {
         // Given
-        var script = new GenericScript("test.sql", "SELECT 1");
-        var connectionManager = new DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager(ValidConnectionString);
-        var cancellationToken = CancellationToken.None;
+        GenericScript script = new GenericScript("test.sql", "SELECT 1");
+        MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager connectionManager = new DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager(ValidConnectionString);
+        CancellationToken cancellationToken = CancellationToken.None;
 
         // When & Then
         if (IsConnectionStringValid(ValidConnectionString))
         {
-            var result = await _executor.ExecuteAsync(script, connectionManager, cancellationToken);
-            
+            MigrationResult result = await _executor.ExecuteAsync(script, connectionManager, cancellationToken);
+
             using (new AssertionScope())
             {
                 result.Should().NotBeNull();
@@ -190,8 +186,8 @@ public class SqlServerScriptExecutorTests
         else
         {
             // If we can't connect, it should return a failed result
-            var result = await _executor.ExecuteAsync(script, connectionManager, cancellationToken);
-            
+            MigrationResult result = await _executor.ExecuteAsync(script, connectionManager, cancellationToken);
+
             using (new AssertionScope())
             {
                 result.Should().NotBeNull();
@@ -207,22 +203,22 @@ public class SqlServerScriptExecutorTests
     public async Task ExecuteAsync_WithScriptContainingGOStatements_ShouldSplitAndExecuteBatches()
     {
         // Given
-        var scriptContent = @"
+        string scriptContent = @"
 SELECT 1;
 GO
 SELECT 2;
 GO
 SELECT 3;
 ";
-        var script = new GenericScript("batches.sql", scriptContent);
-        var connectionManager = new DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager(ValidConnectionString);
-        var cancellationToken = CancellationToken.None;
+        GenericScript script = new GenericScript("batches.sql", scriptContent);
+        MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager connectionManager = new DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager(ValidConnectionString);
+        CancellationToken cancellationToken = CancellationToken.None;
 
         // When & Then
         if (IsConnectionStringValid(ValidConnectionString))
         {
-            var result = await _executor.ExecuteAsync(script, connectionManager, cancellationToken);
-            
+            MigrationResult result = await _executor.ExecuteAsync(script, connectionManager, cancellationToken);
+
             using (new AssertionScope())
             {
                 result.Should().NotBeNull();
@@ -236,8 +232,8 @@ SELECT 3;
         else
         {
             // If we can't connect, it should return a failed result
-            var result = await _executor.ExecuteAsync(script, connectionManager, cancellationToken);
-            
+            MigrationResult result = await _executor.ExecuteAsync(script, connectionManager, cancellationToken);
+
             using (new AssertionScope())
             {
                 result.Should().NotBeNull();
@@ -253,15 +249,15 @@ SELECT 3;
     public async Task ExecuteAsync_WithSelectStatement_ShouldExecuteWithReader()
     {
         // Given
-        var script = new GenericScript("select.sql", "SELECT GETDATE() as CurrentTime");
-        var connectionManager = new DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager(ValidConnectionString);
-        var cancellationToken = CancellationToken.None;
+        GenericScript script = new GenericScript("select.sql", "SELECT GETDATE() as CurrentTime");
+        MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager connectionManager = new DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager(ValidConnectionString);
+        CancellationToken cancellationToken = CancellationToken.None;
 
         // When & Then
         if (IsConnectionStringValid(ValidConnectionString))
         {
-            var result = await _executor.ExecuteAsync(script, connectionManager, cancellationToken);
-            
+            MigrationResult result = await _executor.ExecuteAsync(script, connectionManager, cancellationToken);
+
             using (new AssertionScope())
             {
                 result.Should().NotBeNull();
@@ -275,8 +271,8 @@ SELECT 3;
         else
         {
             // If we can't connect, it should return a failed result
-            var result = await _executor.ExecuteAsync(script, connectionManager, cancellationToken);
-            
+            MigrationResult result = await _executor.ExecuteAsync(script, connectionManager, cancellationToken);
+
             using (new AssertionScope())
             {
                 result.Should().NotBeNull();
@@ -292,12 +288,12 @@ SELECT 3;
     public async Task ExecuteAsync_WithInvalidConnectionString_ShouldReturnFailedResult()
     {
         // Given
-        var script = new GenericScript("test.sql", "SELECT 1");
-        var connectionManager = new DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager(InvalidConnectionString);
-        var cancellationToken = CancellationToken.None;
+        GenericScript script = new GenericScript("test.sql", "SELECT 1");
+        MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager connectionManager = new DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager(InvalidConnectionString);
+        CancellationToken cancellationToken = CancellationToken.None;
 
         // When
-        var result = await _executor.ExecuteAsync(script, connectionManager, cancellationToken);
+        MigrationResult result = await _executor.ExecuteAsync(script, connectionManager, cancellationToken);
 
         // Then
         using (new AssertionScope())
@@ -314,14 +310,14 @@ SELECT 3;
     public async Task VerifySchemaAsync_WithValidConnection_ShouldNotThrow()
     {
         // Given
-        var connectionManager = new DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager(ValidConnectionString);
-        var cancellationToken = CancellationToken.None;
+        MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager connectionManager = new DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager(ValidConnectionString);
+        CancellationToken cancellationToken = CancellationToken.None;
 
         // When & Then
         if (IsConnectionStringValid(ValidConnectionString))
         {
             Func<Task> act = async () => await _executor.VerifySchemaAsync(connectionManager, cancellationToken);
-            
+
             using (new AssertionScope())
             {
                 await act.Should().NotThrowAsync();
@@ -331,7 +327,7 @@ SELECT 3;
         {
             // If we can't connect, it should throw
             Func<Task> act = async () => await _executor.VerifySchemaAsync(connectionManager, cancellationToken);
-            
+
             using (new AssertionScope())
             {
                 await act.Should().ThrowAsync<Exception>();
@@ -343,8 +339,8 @@ SELECT 3;
     public async Task VerifySchemaAsync_WithInvalidConnection_ShouldThrow()
     {
         // Given
-        var connectionManager = new DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager(InvalidConnectionString);
-        var cancellationToken = CancellationToken.None;
+        MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager connectionManager = new DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager(InvalidConnectionString);
+        CancellationToken cancellationToken = CancellationToken.None;
 
         // When
         Func<Task> act = async () => await _executor.VerifySchemaAsync(connectionManager, cancellationToken);
@@ -360,12 +356,12 @@ SELECT 3;
     public async Task ExecuteAsync_WithCancelledToken_ShouldReturnFailedResult()
     {
         // Given
-        var script = new GenericScript("test.sql", "SELECT 1");
-        var connectionManager = new DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager(ValidConnectionString);
-        var cancellationToken = new CancellationToken(true); // Pre-cancelled token
+        GenericScript script = new GenericScript("test.sql", "SELECT 1");
+        MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager connectionManager = new DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution.SqlServerConnectionManager(ValidConnectionString);
+        CancellationToken cancellationToken = new CancellationToken(true); // Pre-cancelled token
 
         // When
-        var result = await _executor.ExecuteAsync(script, connectionManager, cancellationToken);
+        MigrationResult result = await _executor.ExecuteAsync(script, connectionManager, cancellationToken);
 
         // Then
         using (new AssertionScope())
@@ -385,7 +381,7 @@ SELECT 3;
     {
         try
         {
-            using var connection = new SqlConnection(connectionString);
+            using SqlConnection connection = new SqlConnection(connectionString);
             connection.Open();
             return true;
         }

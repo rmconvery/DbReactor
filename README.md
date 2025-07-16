@@ -32,6 +32,7 @@ DbReactor is split into separate NuGet packages:
 - **Multiple Script Types**: SQL scripts, dynamic C# code scripts, and embedded resources
 - **Database Agnostic**: Extensible architecture supports any database platform
 - **Comprehensive Tracking**: Full migration history with execution time and rollback support
+- **Dry Run Mode**: Preview what migrations would be executed without actually running them
 - **Safe Migrations**: Built-in SQL injection protection and transaction management
 - **Flexible Discovery**: Multiple ways to organize and discover migration scripts
 - **Async-First Architecture**: Non-blocking database operations with cancellation tokens and sync wrappers (including DatabaseProvisioner)

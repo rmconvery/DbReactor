@@ -69,6 +69,10 @@ The `DbReactorEngine` orchestrates migration execution:
 ```csharp
 var engine = new DbReactorEngine(config);
 
+// Preview migrations before execution (dry run)
+var dryRunResult = await engine.PreviewRunAsync();
+Console.WriteLine($"Would execute {dryRunResult.PendingMigrations} migrations");
+
 // Execute migrations
 var result = await engine.RunAsync();
 
@@ -201,6 +205,31 @@ var config = new DbReactorConfiguration()
     .UseSqlServer(connectionString)
     .UseCustomScriptDiscovery(new MyCustomScriptProvider());
 ```
+
+### Dry Run Mode (Preview)
+
+Preview what migrations would be executed without actually running them:
+
+```csharp
+var engine = new DbReactorEngine(config);
+
+// Preview migrations 
+var dryRunResult = await engine.PreviewRunAsync();
+
+// Access detailed information
+Console.WriteLine($"Total migrations: {dryRunResult.TotalMigrations}");
+Console.WriteLine($"Pending upgrades: {dryRunResult.PendingUpgrades}");
+Console.WriteLine($"Pending downgrades: {dryRunResult.PendingDowngrades}");
+Console.WriteLine($"Already executed: {dryRunResult.SkippedMigrations}");
+
+// Output is also logged through the configured log provider
+```
+
+**Key Features:**
+- Shows which migrations would be executed vs. skipped
+- Detects both upgrade and downgrade operations
+- Handles database existence checking
+- Integrates with your logging configuration
 
 ### Downgrade Support
 ```csharp

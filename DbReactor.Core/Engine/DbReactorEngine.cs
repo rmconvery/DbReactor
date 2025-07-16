@@ -22,11 +22,11 @@ namespace DbReactor.Core.Engine
                 throw new ArgumentNullException(nameof(configuration));
 
             // Validate configuration
-            var validationService = new ConfigurationValidationService();
+            ConfigurationValidationService validationService = new ConfigurationValidationService();
             validationService.ValidateAndThrow(configuration);
 
             // Initialize services
-            var executionService = new ScriptExecutionService(configuration);
+            ScriptExecutionService executionService = new ScriptExecutionService(configuration);
             _filteringService = new MigrationFilteringService(configuration);
             _orchestrator = new MigrationOrchestrator(configuration, executionService, _filteringService);
         }
@@ -59,6 +59,11 @@ namespace DbReactor.Core.Engine
         public async Task<IEnumerable<IMigration>> GetAppliedUpgradesAsync(CancellationToken cancellationToken = default)
         {
             return await _filteringService.GetAppliedUpgradesAsync(cancellationToken);
+        }
+
+        public async Task<DbReactorPreviewResult> RunPreviewAsync(CancellationToken cancellationToken = default)
+        {
+            return await _orchestrator.RunPreviewAsync(cancellationToken);
         }
     }
 }
