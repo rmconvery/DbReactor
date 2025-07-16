@@ -8,7 +8,7 @@ class Program
 {
     static void Main(string[] args)
     {
-        string connectionString = "Server=localhost;Database=Clown;Trusted_Connection=True;TrustServerCertificate=true;";
+        string connectionString = "Server=localhost;Database=DbReactorTest;Trusted_Connection=True;TrustServerCertificate=true;";
 
 
         DbReactorConfiguration config = new DbReactorConfiguration()
