@@ -5,7 +5,7 @@ DbReactor.Core is a powerful, extensible .NET database migration framework that 
 
 ## Table of Contents
 
-- [🚀 Quick Start](#-quick-start) - Get running in 5 minutes
+- [Quick Start](#-quick-start) - Get running in 5 minutes
 - [Features](#features) - Key capabilities
 - [Installation](#installation) - Package setup
 - [Quick Example](#quick-example) - Basic usage
@@ -27,7 +27,7 @@ DbReactor.Core is a powerful, extensible .NET database migration framework that 
 - **Robust Error Handling**: Detailed exception hierarchy with contextual information
 - **Production Ready**: Enterprise-grade security and performance optimizations
 
-## 🚀 Quick Start
+## Quick Start
 
 **New to DbReactor?** Check out the [Quick Start Guide](QUICKSTART.md) to get running in 5 minutes!
 
