@@ -17,6 +17,7 @@ namespace DbReactor.Core.Engine
         private readonly DbReactorConfiguration _configuration;
         private readonly ScriptExecutionService _executionService;
         private readonly MigrationFilteringService _filteringService;
+        private readonly DryRunExecutionService _dryRunService;
 
         public MigrationOrchestrator(
             DbReactorConfiguration configuration,
@@ -26,6 +27,7 @@ namespace DbReactor.Core.Engine
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _executionService = executionService ?? throw new ArgumentNullException(nameof(executionService));
             _filteringService = filteringService ?? throw new ArgumentNullException(nameof(filteringService));
+            _dryRunService = new DryRunExecutionService(configuration, filteringService);
         }
 
         public async Task<DbReactorResult> ExecuteMigrationsAsync(CancellationToken cancellationToken = default)
@@ -210,6 +212,28 @@ namespace DbReactor.Core.Engine
                 _configuration.LogProvider?.WriteError($"Database downgrade failed: {ex.Message}");
             }
 
+            return result;
+        }
+
+        public async Task<DbReactorDryRunResult> DryRunUpgradesAsync(CancellationToken cancellationToken = default)
+        {
+            _configuration.LogProvider?.WriteInformation("Starting dry run for upgrades...");
+            
+            var result = await _dryRunService.DryRunUpgradesAsync(cancellationToken);
+            
+            _configuration.LogProvider?.WriteInformation($"Dry run completed. {result.Summary}");
+            
+            return result;
+        }
+
+        public async Task<DbReactorDryRunResult> DryRunDowngradesAsync(CancellationToken cancellationToken = default)
+        {
+            _configuration.LogProvider?.WriteInformation("Starting dry run for downgrades...");
+            
+            var result = await _dryRunService.DryRunDowngradesAsync(cancellationToken);
+            
+            _configuration.LogProvider?.WriteInformation($"Dry run completed. {result.Summary}");
+            
             return result;
         }
     }

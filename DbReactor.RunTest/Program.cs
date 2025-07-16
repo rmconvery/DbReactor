@@ -6,7 +6,7 @@ using DbReactor.MSSqlServer.Extensions;
 
 class Program
 {
-    static void Main(string[] args)
+    static async Task Main(string[] args)
     {
         string connectionString = "Server=localhost;Database=DbReactorTest;Trusted_Connection=True;TrustServerCertificate=true;";
 
@@ -28,21 +28,15 @@ class Program
 
         try
         {
-            DbReactorResult result = engine.Run();
-
-            if (result.Successful)
+            DbReactorDryRunResult dryRunResult = await engine.PreviewAsync();
+            if (dryRunResult.Successful)
             {
-                Console.WriteLine("Database upgrade successful!");
-            }
-            else
-            {
-                Console.WriteLine("Database upgrade failed:");
-                Console.WriteLine(result.ErrorMessage);
+                DbReactorResult result = await engine.RunAsync();
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine("Exception during upgrade: " + ex.Message);
+            Console.WriteLine("Exception during operation: " + ex.Message);
         }
     }
 }

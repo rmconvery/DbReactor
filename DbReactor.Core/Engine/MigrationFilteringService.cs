@@ -77,6 +77,11 @@ namespace DbReactor.Core.Engine
                 .Reverse();
         }
 
+        public async Task<IEnumerable<IMigration>> GetAllMigrationsAsync(CancellationToken cancellationToken = default)
+        {
+            return await Task.FromResult(GetMigrations());
+        }
+
         private IEnumerable<IMigration> GetMigrations()
         {
             IEnumerable<IMigration> migrations;

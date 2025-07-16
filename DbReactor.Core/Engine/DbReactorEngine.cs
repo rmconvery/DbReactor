@@ -60,5 +60,15 @@ namespace DbReactor.Core.Engine
         {
             return await _filteringService.GetAppliedUpgradesAsync(cancellationToken);
         }
+
+        public async Task<DbReactorDryRunResult> DryRunUpgradesAsync(CancellationToken cancellationToken = default)
+        {
+            return await _orchestrator.DryRunUpgradesAsync(cancellationToken);
+        }
+
+        public async Task<DbReactorDryRunResult> DryRunDowngradesAsync(CancellationToken cancellationToken = default)
+        {
+            return await _orchestrator.DryRunDowngradesAsync(cancellationToken);
+        }
     }
 }

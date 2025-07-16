@@ -66,6 +66,12 @@ class Program
             .CreateDatabaseIfNotExists();
 
         var engine = new DbReactorEngine(config);
+
+        // Preview migrations before execution (dry run)
+        var dryRunResult = await engine.PreviewAsync();
+        Console.WriteLine($"Would execute {dryRunResult.PendingMigrations} migrations");
+
+        // Execute migrations
         var result = await engine.RunAsync();
 
         if (result.Successful)
@@ -128,6 +134,21 @@ var config = new DbReactorConfiguration()
 ```
 
 ## 6. Running Migrations
+
+### Dry Run (Preview)
+```csharp
+var engine = new DbReactorEngine(config);
+
+// Preview what would be executed
+var dryRunResult = await engine.PreviewAsync();
+
+Console.WriteLine($"Total migrations: {dryRunResult.TotalMigrations}");
+Console.WriteLine($"Pending upgrades: {dryRunResult.PendingUpgrades}");
+Console.WriteLine($"Pending downgrades: {dryRunResult.PendingDowngrades}");
+Console.WriteLine($"Already executed: {dryRunResult.SkippedMigrations}");
+
+// Detailed logging is automatically sent to your configured log provider
+```
 
 ### Basic Execution
 ```csharp

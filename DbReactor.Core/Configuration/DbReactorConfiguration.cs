@@ -64,6 +64,10 @@ namespace DbReactor.Core.Configuration
         /// </summary>
         public bool AllowDowngrades { get; set; } = false;
 
+        /// <summary>
+        /// Whether to run migrations in dry run mode (preview only, no actual execution)
+        /// </summary>
+        public bool DryRun { get; set; } = false;
 
         #endregion
 
