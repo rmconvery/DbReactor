@@ -7,8 +7,6 @@ using DbReactor.MSSqlServer.Journaling;
 using DbReactor.MSSqlServer.Provisioning;
 using FluentAssertions;
 using FluentAssertions.Execution;
-using NUnit.Framework;
-using System;
 
 namespace DbReactor.MSSqlServer.Tests.Extensions;
 
@@ -29,7 +27,7 @@ public class SqlServerExtensionsTests
     public void UseSqlServer_WithValidConnectionString_ShouldConfigureAllComponents()
     {
         // When
-        var result = _config.UseSqlServer(ValidConnectionString);
+        DbReactorConfiguration result = _config.UseSqlServer(ValidConnectionString);
 
         // Then
         using (new AssertionScope())
@@ -50,10 +48,10 @@ public class SqlServerExtensionsTests
     public void UseSqlServer_WithCustomTimeout_ShouldConfigureAllComponents()
     {
         // Given
-        var customTimeout = 60;
+        int customTimeout = 60;
 
         // When
-        var result = _config.UseSqlServer(ValidConnectionString, customTimeout);
+        DbReactorConfiguration result = _config.UseSqlServer(ValidConnectionString, TimeSpan.FromSeconds(customTimeout));
 
         // Then
         using (new AssertionScope())
@@ -70,11 +68,11 @@ public class SqlServerExtensionsTests
     public void UseSqlServer_WithCustomJournalConfiguration_ShouldConfigureAllComponents()
     {
         // Given
-        var customSchema = "custom";
-        var customTable = "CustomJournal";
+        string customSchema = "custom";
+        string customTable = "CustomJournal";
 
         // When
-        var result = _config.UseSqlServer(ValidConnectionString, journalSchema: customSchema, journalTable: customTable);
+        DbReactorConfiguration result = _config.UseSqlServer(ValidConnectionString, journalSchema: customSchema, journalTable: customTable);
 
         // Then
         using (new AssertionScope())
@@ -91,12 +89,12 @@ public class SqlServerExtensionsTests
     public void UseSqlServer_WithAllCustomParameters_ShouldConfigureAllComponents()
     {
         // Given
-        var customTimeout = 120;
-        var customSchema = "migrations";
-        var customTable = "ScriptJournal";
+        int customTimeout = 120;
+        string customSchema = "migrations";
+        string customTable = "ScriptJournal";
 
         // When
-        var result = _config.UseSqlServer(ValidConnectionString, customTimeout, customSchema, customTable);
+        DbReactorConfiguration result = _config.UseSqlServer(ValidConnectionString, TimeSpan.FromSeconds(customTimeout), customSchema, customTable);
 
         // Then
         using (new AssertionScope())
@@ -127,7 +125,7 @@ public class SqlServerExtensionsTests
     public void UseSqlServerConnection_WithValidConnectionString_ShouldConfigureConnectionManager()
     {
         // When
-        var result = _config.UseSqlServerConnection(ValidConnectionString);
+        DbReactorConfiguration result = _config.UseSqlServerConnection(ValidConnectionString);
 
         // Then
         using (new AssertionScope())
@@ -156,7 +154,7 @@ public class SqlServerExtensionsTests
     public void UseSqlServerExecutor_WithDefaultTimeout_ShouldConfigureExecutor()
     {
         // When
-        var result = _config.UseSqlServerExecutor();
+        DbReactorConfiguration result = _config.UseSqlServerExecutor();
 
         // Then
         using (new AssertionScope())
@@ -171,10 +169,10 @@ public class SqlServerExtensionsTests
     public void UseSqlServerExecutor_WithCustomTimeout_ShouldConfigureExecutor()
     {
         // Given
-        var customTimeout = 60;
+        int customTimeout = 60;
 
         // When
-        var result = _config.UseSqlServerExecutor(customTimeout);
+        DbReactorConfiguration result = _config.UseSqlServerExecutor(TimeSpan.FromSeconds(customTimeout));
 
         // Then
         using (new AssertionScope())
@@ -189,7 +187,7 @@ public class SqlServerExtensionsTests
     public void UseSqlServerJournal_WithDefaultParameters_ShouldConfigureJournal()
     {
         // When
-        var result = _config.UseSqlServerJournal();
+        DbReactorConfiguration result = _config.UseSqlServerJournal();
 
         // Then
         using (new AssertionScope())
@@ -204,11 +202,11 @@ public class SqlServerExtensionsTests
     public void UseSqlServerJournal_WithCustomParameters_ShouldConfigureJournal()
     {
         // Given
-        var customSchema = "custom";
-        var customTable = "CustomJournal";
+        string customSchema = "custom";
+        string customTable = "CustomJournal";
 
         // When
-        var result = _config.UseSqlServerJournal(customSchema, customTable);
+        DbReactorConfiguration result = _config.UseSqlServerJournal(customSchema, customTable);
 
         // Then
         using (new AssertionScope())
@@ -226,7 +224,7 @@ public class SqlServerExtensionsTests
         _config.UseSqlServerConnection(ValidConnectionString);
 
         // When
-        var result = _config.UseSqlServerJournal();
+        DbReactorConfiguration result = _config.UseSqlServerJournal();
 
         // Then
         using (new AssertionScope())
@@ -242,7 +240,7 @@ public class SqlServerExtensionsTests
     public void UseSqlServerJournal_WithNullSchema_ShouldUseDefaultSchema()
     {
         // When
-        var result = _config.UseSqlServerJournal(null);
+        DbReactorConfiguration result = _config.UseSqlServerJournal(null);
 
         // Then
         using (new AssertionScope())
@@ -257,7 +255,7 @@ public class SqlServerExtensionsTests
     public void UseSqlServerJournal_WithNullTableName_ShouldUseDefaultTableName()
     {
         // When
-        var result = _config.UseSqlServerJournal(tableName: null);
+        DbReactorConfiguration result = _config.UseSqlServerJournal(tableName: null);
 
         // Then
         using (new AssertionScope())
@@ -272,7 +270,7 @@ public class SqlServerExtensionsTests
     public void UseSqlServerProvisioner_WithValidConnectionString_ShouldConfigureProvisioner()
     {
         // When
-        var result = _config.UseSqlServerProvisioner(ValidConnectionString);
+        DbReactorConfiguration result = _config.UseSqlServerProvisioner(ValidConnectionString);
 
         // Then
         using (new AssertionScope())
@@ -304,7 +302,7 @@ public class SqlServerExtensionsTests
         _config.LogProvider = new NullLogProvider();
 
         // When
-        var result = _config.UseSqlServerProvisioner(ValidConnectionString);
+        DbReactorConfiguration result = _config.UseSqlServerProvisioner(ValidConnectionString);
 
         // Then
         using (new AssertionScope())
@@ -319,9 +317,9 @@ public class SqlServerExtensionsTests
     public void ChainedMethodCalls_ShouldReturnSameConfigurationInstance()
     {
         // When
-        var result = _config
+        DbReactorConfiguration result = _config
             .UseSqlServerConnection(ValidConnectionString)
-            .UseSqlServerExecutor(60)
+            .UseSqlServerExecutor(TimeSpan.FromSeconds(60))
             .UseSqlServerJournal("custom", "CustomJournal")
             .UseSqlServerProvisioner(ValidConnectionString);
 
@@ -343,7 +341,7 @@ public class SqlServerExtensionsTests
         _config.UseSqlServerConnection(ValidConnectionString);
 
         // When
-        var result = _config.UseSqlServerConnection(CustomConnectionString);
+        DbReactorConfiguration result = _config.UseSqlServerConnection(CustomConnectionString);
 
         // Then
         using (new AssertionScope())
@@ -358,7 +356,7 @@ public class SqlServerExtensionsTests
     public void UseSqlServerExecutor_WithZeroTimeout_ShouldConfigureExecutor()
     {
         // When
-        var result = _config.UseSqlServerExecutor(0);
+        DbReactorConfiguration result = _config.UseSqlServerExecutor(TimeSpan.FromSeconds(0));
 
         // Then
         using (new AssertionScope())
@@ -373,7 +371,7 @@ public class SqlServerExtensionsTests
     public void UseSqlServerExecutor_WithNegativeTimeout_ShouldConfigureExecutor()
     {
         // When
-        var result = _config.UseSqlServerExecutor(-1);
+        DbReactorConfiguration result = _config.UseSqlServerExecutor(TimeSpan.FromSeconds(-1));
 
         // Then
         using (new AssertionScope())
@@ -388,7 +386,7 @@ public class SqlServerExtensionsTests
     public void UseSqlServerJournal_WithInvalidSchema_ShouldThrowArgumentException()
     {
         // Given
-        var invalidSchema = "schema;DROP TABLE";
+        string invalidSchema = "schema;DROP TABLE";
 
         // When
         Action act = () => _config.UseSqlServerJournal(invalidSchema);
@@ -405,7 +403,7 @@ public class SqlServerExtensionsTests
     public void UseSqlServerJournal_WithInvalidTableName_ShouldThrowArgumentException()
     {
         // Given
-        var invalidTableName = "table]DROP TABLE";
+        string invalidTableName = "table]DROP TABLE";
 
         // When
         Action act = () => _config.UseSqlServerJournal(tableName: invalidTableName);
@@ -422,7 +420,7 @@ public class SqlServerExtensionsTests
     public void ConfigurationComponentsChaining_ShouldMaintainAllComponents()
     {
         // When
-        var result = _config
+        DbReactorConfiguration result = _config
             .UseSqlServer(ValidConnectionString)
             .UseSqlServerConnection(CustomConnectionString); // Override connection
 
@@ -441,10 +439,10 @@ public class SqlServerExtensionsTests
     public void AllExtensionMethods_ShouldSupportFluentInterface()
     {
         // When
-        var result = _config
-            .UseSqlServer(ValidConnectionString, 120, "migrations", "ScriptJournal")
+        DbReactorConfiguration result = _config
+            .UseSqlServer(ValidConnectionString, TimeSpan.FromSeconds(120), "migrations", "ScriptJournal")
             .UseSqlServerConnection(CustomConnectionString)
-            .UseSqlServerExecutor(90)
+            .UseSqlServerExecutor(TimeSpan.FromSeconds(90))
             .UseSqlServerJournal("custom", "Journal")
             .UseSqlServerProvisioner(ValidConnectionString);
 
