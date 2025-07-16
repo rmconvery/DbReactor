@@ -28,11 +28,8 @@ class Program
 
         try
         {
-            DbReactorDryRunResult dryRunResult = await engine.PreviewAsync();
-            if (dryRunResult.Successful)
-            {
-                DbReactorResult result = await engine.RunAsync();
-            }
+            DbReactorPreviewResult previewResult = await engine.RunPreviewAsync();
+            DbReactorResult result = await engine.RunAsync();
         }
         catch (Exception ex)
         {

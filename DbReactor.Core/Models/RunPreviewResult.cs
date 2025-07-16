@@ -1,14 +1,13 @@
 using DbReactor.Core.Abstractions;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace DbReactor.Core.Models
 {
     /// <summary>
-    /// Represents the result of a dry run migration execution
+    /// Represents the result of a run preview migration execution
     /// </summary>
-    public class DryRunResult
+    public class RunPreviewResult
     {
         /// <summary>
         /// Migration that would be executed
@@ -31,20 +30,20 @@ namespace DbReactor.Core.Models
         public bool IsUpgrade { get; set; } = true;
 
         /// <summary>
-        /// Additional metadata about the dry run
+        /// Additional metadata about the run preview
         /// </summary>
         public Dictionary<string, object> Metadata { get; set; } = new Dictionary<string, object>();
     }
 
     /// <summary>
-    /// Represents the complete result of a dry run execution
+    /// Represents the complete result of a run preview execution
     /// </summary>
-    public class DbReactorDryRunResult
+    public class DbReactorPreviewResult
     {
         /// <summary>
-        /// Individual migration dry run results
+        /// Individual migration run preview results
         /// </summary>
-        public List<DryRunResult> MigrationResults { get; set; } = new List<DryRunResult>();
+        public List<RunPreviewResult> MigrationResults { get; set; } = new List<RunPreviewResult>();
 
         /// <summary>
         /// Total number of migrations discovered
@@ -80,11 +79,6 @@ namespace DbReactor.Core.Models
         /// Number of downgrade migrations already executed
         /// </summary>
         public int SkippedDowngrades => MigrationResults.Count(r => r.AlreadyExecuted && !r.IsUpgrade);
-
-        /// <summary>
-        /// Whether the dry run was successful
-        /// </summary>
-        public bool Successful => true; // Always successful since we're just showing what would run
 
         /// <summary>
         /// Summary of what would happen

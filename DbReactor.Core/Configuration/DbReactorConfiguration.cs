@@ -1,4 +1,3 @@
-using DbReactor.Core.Constants;
 using DbReactor.Core.Discovery;
 using DbReactor.Core.Enumerations;
 using DbReactor.Core.Execution;
@@ -15,7 +14,7 @@ namespace DbReactor.Core.Configuration
     public class DbReactorConfiguration
     {
         #region Core Components
-        
+
         /// <summary>
         /// Database connection manager for executing migrations
         /// </summary>
@@ -63,11 +62,6 @@ namespace DbReactor.Core.Configuration
         /// Whether downgrade operations are enabled (default: false)
         /// </summary>
         public bool AllowDowngrades { get; set; } = false;
-
-        /// <summary>
-        /// Whether to run migrations in dry run mode (preview only, no actual execution)
-        /// </summary>
-        public bool DryRun { get; set; } = false;
 
         #endregion
 

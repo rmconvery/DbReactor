@@ -70,7 +70,7 @@ The `DbReactorEngine` orchestrates migration execution:
 var engine = new DbReactorEngine(config);
 
 // Preview migrations before execution (dry run)
-var dryRunResult = await engine.PreviewAsync();
+var dryRunResult = await engine.PreviewRunAsync();
 Console.WriteLine($"Would execute {dryRunResult.PendingMigrations} migrations");
 
 // Execute migrations
@@ -214,7 +214,7 @@ Preview what migrations would be executed without actually running them:
 var engine = new DbReactorEngine(config);
 
 // Preview migrations 
-var dryRunResult = await engine.PreviewAsync();
+var dryRunResult = await engine.PreviewRunAsync();
 
 // Access detailed information
 Console.WriteLine($"Total migrations: {dryRunResult.TotalMigrations}");

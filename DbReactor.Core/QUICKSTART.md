@@ -68,7 +68,7 @@ class Program
         var engine = new DbReactorEngine(config);
 
         // Preview migrations before execution (dry run)
-        var dryRunResult = await engine.PreviewAsync();
+        var dryRunResult = await engine.PreviewRunAsync();
         Console.WriteLine($"Would execute {dryRunResult.PendingMigrations} migrations");
 
         // Execute migrations
@@ -140,7 +140,7 @@ var config = new DbReactorConfiguration()
 var engine = new DbReactorEngine(config);
 
 // Preview what would be executed
-var dryRunResult = await engine.PreviewAsync();
+var dryRunResult = await engine.PreviewRunAsync();
 
 Console.WriteLine($"Total migrations: {dryRunResult.TotalMigrations}");
 Console.WriteLine($"Pending upgrades: {dryRunResult.PendingUpgrades}");

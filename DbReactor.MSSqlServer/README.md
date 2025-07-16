@@ -26,7 +26,7 @@ var config = new DbReactorConfiguration()
 var engine = new DbReactorEngine(config);
 
 // Preview migrations before execution (dry run)
-var dryRunResult = await engine.PreviewAsync();
+var dryRunResult = await engine.PreviewRunAsync();
 Console.WriteLine($"Would execute {dryRunResult.PendingMigrations} migrations");
 
 var result = await engine.RunAsync();
