@@ -10,6 +10,7 @@ class Program
     {
         string connectionString = "Server=localhost;Database=Clown;Trusted_Connection=True;TrustServerCertificate=true;";
 
+
         DbReactorConfiguration config = new DbReactorConfiguration()
             .UseSqlServer(connectionString)
             .UseConsoleLogging()

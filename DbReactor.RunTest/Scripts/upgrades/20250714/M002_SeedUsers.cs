@@ -10,7 +10,7 @@ namespace DbReactor.RunTest.Scripts.upgrades._20250714
     /// <summary>
     /// Code script to add indexes to the Users table
     /// </summary>
-    public class _002_SeedUsers : ICodeScript
+    public class M002_SeedUsers : ICodeScript
     {
         public bool SupportsDowngrade => true;
 

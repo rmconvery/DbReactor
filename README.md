@@ -3,6 +3,19 @@
 
 DbReactor.Core is a powerful, extensible .NET database migration framework that provides version-controlled, repeatable database schema management. It supports multiple script types, database providers, and offers comprehensive tracking and rollback capabilities.
 
+## Table of Contents
+
+- [🚀 Quick Start](#-quick-start) - Get running in 5 minutes
+- [Features](#features) - Key capabilities
+- [Installation](#installation) - Package setup
+- [Quick Example](#quick-example) - Basic usage
+- [Comprehensive User Guide](#comprehensive-user-guide) - Complete documentation
+- [Script Discovery & Ordering](#script-discovery-and-ordering) - How migrations are found
+- [Migration Patterns](#migration-patterns) - Common scenarios
+- [Best Practices](#best-practices) - Naming strategies and tips
+- [API Reference](#api-reference) - Method documentation
+- [Support](#support) - Help and resources
+
 ## Features
 
 - **Multiple Script Types**: SQL scripts, dynamic C# code scripts, and embedded resources
@@ -14,6 +27,10 @@ DbReactor.Core is a powerful, extensible .NET database migration framework that 
 - **Robust Error Handling**: Detailed exception hierarchy with contextual information
 - **Production Ready**: Enterprise-grade security and performance optimizations
 
+## 🚀 Quick Start
+
+**New to DbReactor?** Check out the [Quick Start Guide](QUICKSTART.md) to get running in 5 minutes!
+
 ## Installation
 
 ```bash
@@ -24,7 +41,7 @@ dotnet add package DbReactor.Core
 dotnet add package DbReactor.MSSqlServer
 ```
 
-## Quick Start
+## Quick Example
 
 ### Basic Setup
 
@@ -89,6 +106,60 @@ Mark your SQL scripts as **Embedded Resources** in your project file:
 
 #### 1. Scripts
 Scripts are the fundamental units of database changes. DbReactor supports three types:
+
+##### **Script Discovery and Ordering**
+
+DbReactor automatically discovers and orders scripts using the following rules:
+
+**Discovery Process:**
+1. **Embedded SQL Scripts**: Found as embedded resources in your assembly
+2. **Code Scripts**: Found as C# classes implementing `ICodeScript`
+3. **Namespace Detection**: Automatically detects base namespace from embedded resources
+4. **Alphabetical Sorting**: All scripts are sorted alphabetically by their full name
+
+**Sorting Behavior:**
+- Scripts are sorted by their complete name (including namespace)
+- Mixed file types (SQL + C#) are sorted together
+- Case-sensitive alphabetical order is used
+- Example order: `M001_CreateTable.sql`, `M002_SeedData.cs`, `M003_AddIndexes.sql`
+
+**Recommended Naming Strategy:**
+While you can use any naming convention, we recommend:
+```
+M001_CreateUsersTable.sql
+M002_SeedUsers.cs  
+M003_CreateProductsTable.sql
+M004_CreateOrdersTable.sql
+M005_EnvironmentSpecificSettings.sql
+```
+
+**Why This Works:**
+- ✅ **Consistent sorting** across all database types and file extensions
+- ✅ **C# class compatibility** - `M001_CreateTable` is a valid C# class name
+- ✅ **Self-documenting** - clear sequence and purpose
+- ✅ **Database agnostic** - works with SQL Server, PostgreSQL, MySQL, MongoDB, etc.
+- ✅ **File type agnostic** - works with .sql, .cs, .json, .xml, .py, .js, etc.
+
+**Alternative Strategies:**
+```
+# Date-based (good for teams)
+20250716_001_CreateUsersTable.sql
+20250716_002_SeedUsers.cs
+
+# Semantic versioning
+V1_0_1_CreateUsersTable.sql
+V1_0_2_SeedUsers.cs
+
+# Simple sequential
+001_CreateUsersTable.sql
+002_SeedUsers.cs  // Note: Class must be named _002_SeedUsers or similar
+```
+
+**Important Notes:**
+- **C# Class Names**: Cannot start with digits, so `002_SeedUsers.cs` requires class name `_002_SeedUsers` or `M002_SeedUsers`
+- **Mixed Types**: SQL files and C# classes are sorted together alphabetically
+- **Case Sensitivity**: Sorting is case-sensitive, so `M001` comes before `m001`
+- **Namespace Impact**: Full namespace is used for sorting, not just file name
 
 **SQL Scripts** (`.sql` files):
 ```sql
@@ -252,6 +323,57 @@ config.UseEmbeddedScriptsFromFolder(assembly, "MyApp.Scripts", "migrations")
 
 // Code script discovery
 config.UseCodeScripts(assembly, targetNamespace: "MyApp.Migrations");
+```
+
+##### **How UseStandardFolderStructure Works**
+
+The `UseStandardFolderStructure` method automatically discovers your migration scripts using these steps:
+
+**1. Namespace Detection:**
+```csharp
+// Analyzes embedded resources to find base namespace
+// For resources like: MyApp.Scripts.upgrades.M001_CreateTable.sql
+// Discovers base namespace: MyApp.Scripts
+string baseNamespace = AssemblyResourceUtility.DiscoverBaseNamespace(assembly);
+```
+
+**2. Folder Structure Expected:**
+```
+YourProject/
+├── Scripts/
+│   ├── upgrades/
+│   │   ├── M001_CreateUsersTable.sql
+│   │   ├── M002_SeedUsers.cs
+│   │   └── M003_CreateIndexes.sql
+│   └── downgrades/
+│       ├── M001_CreateUsersTable.sql
+│       ├── M002_SeedUsers.sql
+│       └── M003_CreateIndexes.sql
+└── Program.cs
+```
+
+**3. Embedded Resource Naming:**
+When you mark SQL scripts as **Embedded Resources**, they become:
+```
+YourAssembly.Scripts.upgrades.M001_CreateUsersTable.sql
+YourAssembly.Scripts.upgrades.M002_SeedUsers.cs
+YourAssembly.Scripts.downgrades.M001_CreateUsersTable.sql
+```
+
+**4. Discovery Process:**
+- **SQL Scripts**: Found via `UseEmbeddedScriptsFromFolder(assembly, baseNamespace, "upgrades")`
+- **C# Scripts**: Found via `UseCodeScripts(assembly)`
+- **Downgrades**: Found via `UseDowngradesFromFolder(assembly, baseNamespace, "downgrades")`
+
+**5. Sorting and Execution:**
+All discovered scripts are sorted alphabetically by their full name and executed in order.
+
+**Troubleshooting Discovery Issues:**
+```csharp
+// If discovery isn't working, manually specify the namespace:
+config.UseEmbeddedScriptsFromFolder(assembly, "YourApp.Scripts", "upgrades")
+      .UseDowngradesFromFolder(assembly, "YourApp.Scripts", "downgrades")
+      .UseCodeScripts(assembly);
 ```
 
 #### Migration Behavior Extensions
@@ -633,6 +755,51 @@ catch (MigrationExecutionException ex)
 ### Best Practices
 
 #### 1. Script Naming and Organization
+
+##### **Naming Strategy Guidelines**
+
+**Core Principle:** Use a consistent naming convention that sorts correctly across all file types.
+
+**Recommended Approaches:**
+
+**Option 1: M### Prefix (Recommended)**
+```
+M001_CreateUsersTable.sql
+M002_SeedUsers.cs
+M003_CreateProductsTable.sql
+M004_CreateOrdersTable.sql
+M005_EnvironmentSpecificSettings.sql
+```
+
+**Option 2: Date-based (Good for teams)**
+```
+20250716_001_CreateUsersTable.sql
+20250716_002_SeedUsers.cs
+20250716_003_CreateProductsTable.sql
+```
+
+**Option 3: Semantic Versioning**
+```
+V1_0_1_CreateUsersTable.sql
+V1_0_2_SeedUsers.cs
+V1_0_3_CreateProductsTable.sql
+```
+
+**Why These Work:**
+- ✅ **Alphabetical sorting** works correctly
+- ✅ **C# class compatibility** - all are valid C# class names
+- ✅ **Database agnostic** - works with any database technology
+- ✅ **File type agnostic** - works with .sql, .cs, .json, .xml, .py, .js, etc.
+- ✅ **Self-documenting** - clear sequence and purpose
+
+**What to Avoid:**
+```
+❌ 001_CreateTable.sql + _002_SeedUsers.cs  // Inconsistent prefixes
+❌ createTable.sql + SeedUsers.cs          // No ordering
+❌ 1_create.sql + 10_seed.cs              // Incorrect alphabetical order
+```
+
+##### **Folder Organization**
 ```
 Scripts/
 ├── upgrades/
@@ -1728,7 +1895,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- 📚 [Documentation](docs/)
+- 🚀 [Quick Start Guide](QUICKSTART.md) - Get running in 5 minutes
+- 📚 [Full Documentation](README.md) - Complete feature reference
 - 🐛 [Issue Tracker](https://github.com/your-org/dbreactor/issues)
 - 💬 [Discussions](https://github.com/your-org/dbreactor/discussions)
 - 📧 [Email Support](mailto:support@dbreactor.com)

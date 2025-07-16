@@ -90,8 +90,9 @@ namespace DbReactor.Core.Utilities
             
             var parts = resourceName.Split('.');
             
-            // Look for known folder indicators
-            var folderIndex = FindKnownFolderIndex(parts, knownFolders);
+            // Look for known folder indicators, prioritizing more specific folders
+            // Find the LAST known folder in the path, not the first
+            var folderIndex = FindLastKnownFolderIndex(parts, knownFolders);
             
             if (folderIndex > 0)
             {
@@ -117,6 +118,24 @@ namespace DbReactor.Core.Utilities
         private static int FindKnownFolderIndex(string[] parts, string[] knownFolders)
         {
             for (int i = 0; i < parts.Length; i++)
+            {
+                if (knownFolders.Any(folder => parts[i].Equals(folder, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        /// <summary>
+        /// Finds the index of the last known folder name in the resource path parts
+        /// </summary>
+        /// <param name="parts">Parts of the resource path</param>
+        /// <param name="knownFolders">Known folder names to search for</param>
+        /// <returns>Index of the last known folder, or -1 if none found</returns>
+        private static int FindLastKnownFolderIndex(string[] parts, string[] knownFolders)
+        {
+            for (int i = parts.Length - 1; i >= 0; i--)
             {
                 if (knownFolders.Any(folder => parts[i].Equals(folder, StringComparison.OrdinalIgnoreCase)))
                 {

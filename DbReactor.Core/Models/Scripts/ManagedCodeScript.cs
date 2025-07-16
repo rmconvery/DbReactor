@@ -27,6 +27,7 @@ namespace DbReactor.Core.Models.Scripts
             get
             {
                 // Use the full type name, replacing '+' (for nested types) with '.'
+                // This ensures proper sorting with other script types
                 string typeName = _codeScript.GetType().FullName.Replace('+', '.');
                 return $"{typeName}";
             }
