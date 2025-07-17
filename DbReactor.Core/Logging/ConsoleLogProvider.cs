@@ -1,7 +1,7 @@
 ﻿using DbReactor.Core.Logging;
 using System;
 
-namespace DbReactor.Core.Implementations.Logging
+namespace DbReactor.Core.Logging
 {
     /// <summary>
     /// Console-based implementation of ILogProvider

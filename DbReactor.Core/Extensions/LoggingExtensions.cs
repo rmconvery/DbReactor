@@ -1,5 +1,5 @@
 using DbReactor.Core.Configuration;
-using DbReactor.Core.Implementations.Logging;
+using DbReactor.Core.Logging;
 
 namespace DbReactor.Core.Extensions
 {

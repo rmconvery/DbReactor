@@ -1,6 +1,5 @@
 using DbReactor.Core.Configuration;
 using DbReactor.Core.Discovery;
-using DbReactor.Core.Implementations.Discovery;
 using DbReactor.Core.Utilities;
 using System.Reflection;
 

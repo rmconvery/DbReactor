@@ -9,7 +9,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace DbReactor.Core.Engine
+namespace DbReactor.Core.Services
 {
     /// <summary>
     /// Handles filtering and ordering of migrations

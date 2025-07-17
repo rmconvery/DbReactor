@@ -5,7 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace DbReactor.Core.Implementations.Discovery
+namespace DbReactor.Core.Discovery
 {
     /// <summary>
     /// Builds migrations by combining upgrade scripts with their corresponding downgrade scripts

@@ -1,5 +1,5 @@
 using DbReactor.Core.Configuration;
-using DbReactor.Core.Implementations.Logging;
+using DbReactor.Core.Logging;
 using DbReactor.MSSqlServer.Execution;
 using DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution;
 using DbReactor.MSSqlServer.Extensions;
