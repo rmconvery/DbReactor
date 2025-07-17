@@ -1,7 +1,6 @@
 using DbReactor.Core.Abstractions;
 using DbReactor.MSSqlServer.Constants;
 using DbReactor.Core.Execution;
-using DbReactor.Core.Implementations.Logging;
 using DbReactor.Core.Journaling;
 using DbReactor.Core.Logging;
 using DbReactor.Core.Models;

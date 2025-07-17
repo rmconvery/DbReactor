@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 
-namespace DbReactor.Core.Implementations.Discovery
+namespace DbReactor.Core.Discovery
 {
     /// <summary>
     /// Discovers code scripts from an assembly by scanning for ICodeScript implementations

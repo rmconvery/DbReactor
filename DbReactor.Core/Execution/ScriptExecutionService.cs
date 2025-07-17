@@ -9,7 +9,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace DbReactor.Core.Engine
+namespace DbReactor.Core.Execution
 {
     /// <summary>
     /// Handles the execution of individual migration scripts

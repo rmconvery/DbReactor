@@ -5,7 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace DbReactor.Core.Engine
+namespace DbReactor.Core.Services
 {
     /// <summary>
     /// Validates DbReactor configuration for correctness and completeness

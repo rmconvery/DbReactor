@@ -1,4 +1,3 @@
-using DbReactor.Core.Implementations.Logging;
 using DbReactor.Core.Logging;
 using DbReactor.Core.Provisioning;
 using DbReactor.MSSqlServer.Provisioning;

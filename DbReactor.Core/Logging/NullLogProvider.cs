@@ -1,6 +1,6 @@
 ﻿using DbReactor.Core.Logging;
 
-namespace DbReactor.Core.Implementations.Logging
+namespace DbReactor.Core.Logging
 {
     /// <summary>
     /// Null object pattern implementation of ILogProvider that does nothing
