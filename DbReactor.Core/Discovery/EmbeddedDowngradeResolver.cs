@@ -6,6 +6,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DbReactor.Core.Discovery
 {
@@ -32,7 +34,7 @@ namespace DbReactor.Core.Discovery
             _matchingOptions = matchingOptions ?? new DowngradeMatchingOptions();
         }
 
-        public IScript FindDowngradeFor(IScript upgradeScript)
+        public async Task<IScript> FindDowngradeForAsync(IScript upgradeScript, CancellationToken cancellationToken = default)
         {
             if (upgradeScript == null)
                 return null;
@@ -40,51 +42,53 @@ namespace DbReactor.Core.Discovery
             switch (_matchingOptions.Mode)
             {
                 case DowngradeMatchingMode.Suffix:
-                    return FindDowngradeWithSuffix(upgradeScript);
-                
+                    return await FindDowngradeWithSuffixAsync(upgradeScript, cancellationToken);
                 case DowngradeMatchingMode.Prefix:
-                    return FindDowngradeWithPrefix(upgradeScript);
-                
+                    return await FindDowngradeWithPrefixAsync(upgradeScript, cancellationToken);
                 case DowngradeMatchingMode.SameName:
-                    return FindDowngradeWithSameName(upgradeScript);
-                
+                    return await FindDowngradeWithSameNameAsync(upgradeScript, cancellationToken);
                 default:
                     return null;
             }
         }
 
-        public IEnumerable<IScript> GetDowngradeScripts()
+        public Task<IEnumerable<IScript>> GetDowngradeScriptsAsync(CancellationToken cancellationToken = default)
         {
-            return _assembly.GetManifestResourceNames()
+            IEnumerable<IScript> scripts = _assembly.GetManifestResourceNames()
                 .Where(r => r.StartsWith(_downgradeNamespace, StringComparison.Ordinal)
                     && r.EndsWith(_matchingOptions.DowngradeSuffix, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(r => r)
                 .Select(resourceName => new EmbeddedScript(_assembly, resourceName));
+            
+            return Task.FromResult(scripts);
         }
 
-        private IScript FindDowngradeWithSuffix(IScript upgradeScript)
+        private async Task<IScript> FindDowngradeWithSuffixAsync(IScript upgradeScript, CancellationToken cancellationToken)
         {
             var baseName = GetBaseNameFromUpgrade(upgradeScript.Name);
             var expectedDowngradeName = baseName + _matchingOptions.Pattern + _matchingOptions.DowngradeSuffix;
             
-            return GetDowngradeScripts()
+            var downgradeScripts = await GetDowngradeScriptsAsync(cancellationToken);
+            return downgradeScripts
                 .FirstOrDefault(ds => GetFileNameFromResource(ds.Name).Equals(expectedDowngradeName, StringComparison.OrdinalIgnoreCase));
         }
 
-        private IScript FindDowngradeWithPrefix(IScript upgradeScript)
+        private async Task<IScript> FindDowngradeWithPrefixAsync(IScript upgradeScript, CancellationToken cancellationToken)
         {
             var baseName = GetBaseNameFromUpgrade(upgradeScript.Name);
             var expectedDowngradeName = _matchingOptions.Pattern + baseName + _matchingOptions.DowngradeSuffix;
             
-            return GetDowngradeScripts()
+            var downgradeScripts = await GetDowngradeScriptsAsync(cancellationToken);
+            return downgradeScripts
                 .FirstOrDefault(ds => GetFileNameFromResource(ds.Name).Equals(expectedDowngradeName, StringComparison.OrdinalIgnoreCase));
         }
 
-        private IScript FindDowngradeWithSameName(IScript upgradeScript)
+        private async Task<IScript> FindDowngradeWithSameNameAsync(IScript upgradeScript, CancellationToken cancellationToken)
         {
             var upgradeFileName = GetFileNameFromResource(upgradeScript.Name);
             
-            return GetDowngradeScripts()
+            var downgradeScripts = await GetDowngradeScriptsAsync(cancellationToken);
+            return downgradeScripts
                 .FirstOrDefault(ds => GetFileNameFromResource(ds.Name).Equals(upgradeFileName, StringComparison.OrdinalIgnoreCase));
         }
 

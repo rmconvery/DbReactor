@@ -5,6 +5,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DbReactor.Core.Discovery
 {
@@ -40,13 +42,15 @@ namespace DbReactor.Core.Discovery
         }
 
 
-        public IEnumerable<IScript> GetScripts()
+        public Task<IEnumerable<IScript>> GetScriptsAsync(CancellationToken cancellationToken = default)
         {
-            return _assembly.GetManifestResourceNames()
+            IEnumerable<IScript> scripts = _assembly.GetManifestResourceNames()
                 .Where(r => r.StartsWith(_resourceNamespace, StringComparison.Ordinal)
                     && r.EndsWith(_scriptSuffix, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(r => r)
                 .Select(resourceName => new EmbeddedScript(_assembly, resourceName));
+            
+            return Task.FromResult(scripts);
         }
 
         private string DiscoverScriptNamespace(Assembly assembly)

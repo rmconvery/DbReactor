@@ -1,6 +1,7 @@
 using DbReactor.Core.Configuration;
 using DbReactor.Core.Discovery;
 using DbReactor.Core.Utilities;
+using System.IO;
 using System.Reflection;
 
 namespace DbReactor.Core.Extensions
@@ -169,6 +170,69 @@ namespace DbReactor.Core.Extensions
             return config
                 .UseEmbeddedScriptsFromFolder(assembly, baseNamespace, normalizedUpgradeFolder)
                 .UseDowngradesFromFolder(assembly, baseNamespace, normalizedDowngradeFolder);
+        }
+
+        #endregion
+
+        #region File System Script Discovery
+
+        /// <summary>
+        /// Discovers SQL scripts from a file system directory
+        /// </summary>
+        /// <param name="config">The configuration to extend</param>
+        /// <param name="directoryPath">Directory path containing SQL script files</param>
+        /// <param name="fileExtension">File extension to search for (default: .sql)</param>
+        /// <param name="recursive">Whether to search subdirectories recursively (default: false)</param>
+        /// <returns>The configuration for method chaining</returns>
+        public static DbReactorConfiguration UseFileSystemScripts(this DbReactorConfiguration config, string directoryPath, string fileExtension = ".sql", bool recursive = false)
+        {
+            config.ScriptProviders.Add(new FileSystemScriptProvider(directoryPath, fileExtension, recursive));
+            ConfigurationUtility.RefreshMigrationBuilder(config);
+            return config;
+        }
+
+        /// <summary>
+        /// Enables downgrade operations using scripts from a file system directory
+        /// </summary>
+        /// <param name="config">The configuration to extend</param>
+        /// <param name="downgradeDirectory">Directory containing downgrade scripts</param>
+        /// <param name="fileExtension">File extension for downgrade scripts (default: .sql)</param>
+        /// <param name="matchingMode">How to match upgrade scripts to downgrade scripts (default: SameName)</param>
+        /// <param name="pattern">Pattern for suffix/prefix matching when using Suffix or Prefix modes</param>
+        /// <returns>The configuration for method chaining</returns>
+        public static DbReactorConfiguration UseFileSystemDowngrades(this DbReactorConfiguration config, string downgradeDirectory, string fileExtension = ".sql", DowngradeMatchingMode matchingMode = DowngradeMatchingMode.SameName, string pattern = null)
+        {
+            var options = new DowngradeMatchingOptions
+            {
+                Mode = matchingMode,
+                Pattern = pattern,
+                UpgradeSuffix = fileExtension,
+                DowngradeSuffix = fileExtension
+            };
+
+            config.DowngradeResolver = new FileSystemDowngradeResolver(downgradeDirectory, fileExtension, options);
+            config.AllowDowngrades = true;
+            ConfigurationUtility.RefreshMigrationBuilder(config);
+            return config;
+        }
+
+        /// <summary>
+        /// Sets up file system-based script discovery with standard folder structure
+        /// </summary>
+        /// <param name="config">The configuration to extend</param>
+        /// <param name="baseDirectory">Base directory containing script folders</param>
+        /// <param name="upgradeFolder">Folder containing upgrade scripts (default: upgrades)</param>
+        /// <param name="downgradeFolder">Folder containing downgrade scripts (default: downgrades)</param>
+        /// <param name="fileExtension">File extension for script files (default: .sql)</param>
+        /// <returns>The configuration for method chaining</returns>
+        public static DbReactorConfiguration UseFileSystemFolderStructure(this DbReactorConfiguration config, string baseDirectory, string upgradeFolder = "upgrades", string downgradeFolder = "downgrades", string fileExtension = ".sql")
+        {
+            var upgradePath = Path.Combine(baseDirectory, upgradeFolder);
+            var downgradePath = Path.Combine(baseDirectory, downgradeFolder);
+
+            return config
+                .UseFileSystemScripts(upgradePath, fileExtension)
+                .UseFileSystemDowngrades(downgradePath, fileExtension);
         }
 
         #endregion

@@ -48,6 +48,11 @@ namespace DbReactor.Core.Engine
             return await _orchestrator.ApplyDowngradesAsync(cancellationToken);
         }
 
+        public async Task<DbReactorResult> ApplyLastDowngradeAsync(CancellationToken cancellationToken = default)
+        {
+            return await _orchestrator.ApplyLastDowngradeAsync(cancellationToken);
+        }
+
         public async Task<bool> HasPendingUpgradesAsync(CancellationToken cancellationToken = default)
         {
             return await _filteringService.HasPendingUpgradesAsync(cancellationToken);

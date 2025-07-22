@@ -4,6 +4,8 @@ using DbReactor.Core.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DbReactor.Core.Discovery
 {
@@ -28,32 +30,38 @@ namespace DbReactor.Core.Discovery
             _downgradeResolver = downgradeResolver;
         }
 
-        public IEnumerable<IMigration> BuildMigrations()
+        public async Task<IEnumerable<IMigration>> BuildMigrationsAsync(CancellationToken cancellationToken = default)
         {
             List<IScript> allScripts = new List<IScript>();
 
             // Collect scripts from all providers
             foreach (IScriptProvider provider in _scriptProviders)
             {
-                allScripts.AddRange(provider.GetScripts());
+                IEnumerable<IScript> scripts = await provider.GetScriptsAsync(cancellationToken);
+                allScripts.AddRange(scripts);
             }
 
             // Sort by name to ensure proper execution order (001_a.sql, 002_b.cs, 003_c.sql)
             IOrderedEnumerable<IScript> sortedScripts = allScripts.OrderBy(s => s.Name);
 
+            List<IMigration> migrations = new List<IMigration>();
             foreach (IScript upgradeScript in sortedScripts)
             {
-                IScript downgradeScript = _downgradeResolver?.FindDowngradeFor(upgradeScript);
+                IScript downgradeScript = _downgradeResolver != null 
+                    ? await _downgradeResolver.FindDowngradeForAsync(upgradeScript, cancellationToken)
+                    : null;
 
                 // Extract base name from script name (remove file extension)
                 string baseName = GetBaseName(upgradeScript.Name);
 
-                yield return new Migration(
+                migrations.Add(new Migration(
                     name: baseName,
                     upgradeScript: upgradeScript,
                     downgradeScript: downgradeScript
-                );
+                ));
             }
+
+            return migrations;
         }
 
         private string GetBaseName(string scriptName)

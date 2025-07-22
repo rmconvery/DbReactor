@@ -1,9 +1,5 @@
 using DbReactor.Core.Abstractions;
-using DbReactor.Core.Execution;
 using DbReactor.Core.Models.Contexts;
-using System.Collections.Generic;
-using System.Data;
-using System.Text;
 
 namespace DbReactor.RunTest.Scripts.upgrades._20250714
 {
@@ -19,7 +15,7 @@ namespace DbReactor.RunTest.Scripts.upgrades._20250714
             // Example of using variables with the improved API
             string environment = context.Vars.GetString("Environment", "Development");
             string adminEmail = context.Vars.GetString("AdminEmail", "admin@example.com");
-            
+
             return $@"
                 -- Seeding users into Users table for {environment} environment
                 -- Only insert users that don't already exist

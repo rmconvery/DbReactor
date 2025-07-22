@@ -1,0 +1,70 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>dbreactor</AssemblyName>
+    <RootNamespace>DbReactor.CLI</RootNamespace>
+    
+    <!-- Package Tool -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>dbreactor</ToolCommandName>
+    
+    <!-- Package Metadata -->
+    <PackageId>DbReactor.CLI</PackageId>
+    <Description>Command-line interface for DbReactor database migration framework</Description>
+    <PackageTags>database migration cli dotnet sql-server</PackageTags>
+    
+    <!-- Documentation Generation -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>
+    
+    <!-- Source Linking for Debugging -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    
+    <!-- Package Symbols -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    
+    <!-- Package Validation -->
+    <EnablePackageValidation>true</EnablePackageValidation>
+    
+    <!-- Suppress specific documentation warnings if needed -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
+    <PackageReference Include="Spectre.Console" Version="0.49.1" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DbReactor.Core\DbReactor.Core.csproj" />
+    <ProjectReference Include="..\DbReactor.MSSqlServer\DbReactor.MSSqlServer.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Include README.md in package -->
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    
+    <!-- Include LICENSE in package -->
+    <None Include="..\LICENSE" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Embed template files as resources -->
+    <EmbeddedResource Include="Templates\*.template" />
+  </ItemGroup>
+
+</Project>

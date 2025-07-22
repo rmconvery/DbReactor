@@ -1,5 +1,7 @@
 using DbReactor.Core.Abstractions;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DbReactor.Core.Discovery
 {
@@ -11,7 +13,8 @@ namespace DbReactor.Core.Discovery
         /// <summary>
         /// Builds a collection of migrations from available scripts
         /// </summary>
+        /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Collection of migrations</returns>
-        IEnumerable<IMigration> BuildMigrations();
+        Task<IEnumerable<IMigration>> BuildMigrationsAsync(CancellationToken cancellationToken = default);
     }
 }
