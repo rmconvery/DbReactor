@@ -38,8 +38,11 @@ public class Program
             rootCommand.AddCommand(commandFactory.CreateMigrateCommand());
             rootCommand.AddCommand(commandFactory.CreateStatusCommand());
             rootCommand.AddCommand(commandFactory.CreateRollbackCommand());
+            rootCommand.AddCommand(commandFactory.CreateInitCommand());
             rootCommand.AddCommand(commandFactory.CreateCreateScriptCommand());
             rootCommand.AddCommand(commandFactory.CreateValidateCommand());
+            rootCommand.AddCommand(serviceProvider.GetRequiredService<ProjectsCommand>());
+            rootCommand.AddCommand(serviceProvider.GetRequiredService<VariablesCommand>());
 
             return await rootCommand.InvokeAsync(args);
         }
@@ -77,11 +80,18 @@ public class Program
         services.AddTransient<MigrateCommand>();
         services.AddTransient<StatusCommand>();
         services.AddTransient<RollbackCommand>();
+        services.AddTransient<InitCommand>();
         services.AddTransient<CreateScriptCommand>();
         services.AddTransient<ValidateCommand>();
+        services.AddTransient<ProjectsCommand>();
+        services.AddTransient<VariablesCommand>();
         services.AddSingleton<IMigrationService, MigrationService>();
         services.AddSingleton<IRollbackService, RollbackService>();
         services.AddSingleton<IUserInteractionService, UserInteractionService>();
+        services.AddSingleton<IProjectManagementService, ProjectManagementService>();
+        services.AddSingleton<IProjectRegistryService, ProjectRegistryService>();
+        services.AddSingleton<IVariableManagementService, VariableManagementService>();
+        services.AddSingleton<IVariableEncryptionService, VariableEncryptionService>();
         services.AddSingleton<IDirectoryService, DirectoryService>();
         services.AddSingleton<ITemplateService, TemplateService>();
         services.AddSingleton<IScriptTemplateService, ScriptTemplateService>();

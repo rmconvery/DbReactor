@@ -15,6 +15,7 @@ public class CliConfigurationService : ICliConfigurationService
     private readonly ILogger<CliConfigurationService> _logger;
     private readonly IProviderConfigurationFactory _providerFactory;
     private readonly IDirectoryService _directoryService;
+    private readonly IVariableManagementService _variableManagementService;
     
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -26,12 +27,14 @@ public class CliConfigurationService : ICliConfigurationService
         IConfiguration configuration, 
         ILogger<CliConfigurationService> logger,
         IProviderConfigurationFactory providerFactory,
-        IDirectoryService directoryService)
+        IDirectoryService directoryService,
+        IVariableManagementService variableManagementService)
     {
         _configuration = configuration;
         _logger = logger;
         _providerFactory = providerFactory;
         _directoryService = directoryService;
+        _variableManagementService = variableManagementService;
     }
 
     public async Task<DbReactorConfiguration> BuildConfigurationAsync(CliOptions options, CancellationToken cancellationToken = default)
@@ -153,7 +156,12 @@ public class CliConfigurationService : ICliConfigurationService
         {
             var json = await File.ReadAllTextAsync(configPath, cancellationToken);
             var options = JsonSerializer.Deserialize<CliOptions>(json, JsonOptions) ?? GetDefaultOptions();
-            _logger.LogDebug("Configuration loaded from {ConfigPath}", configPath);
+            
+            // Load and decrypt variables properly
+            var decryptedVariables = await _variableManagementService.GetVariablesAsync(configPath, cancellationToken);
+            options.Variables = decryptedVariables;
+            
+            _logger.LogDebug("Configuration loaded from {ConfigPath} with {VariableCount} variables", configPath, decryptedVariables.Count);
             return options;
         }
         catch (Exception ex)

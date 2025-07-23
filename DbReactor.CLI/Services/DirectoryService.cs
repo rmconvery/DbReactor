@@ -4,6 +4,7 @@ namespace DbReactor.CLI.Services;
 
 public class DirectoryService : IDirectoryService
 {
+    private const int PreferredPatternIndex = 0;
     private readonly ILogger<DirectoryService> _logger;
 
     public DirectoryService(ILogger<DirectoryService> logger)
@@ -63,21 +64,57 @@ public class DirectoryService : IDirectoryService
         }
 
         var currentDir = Directory.GetCurrentDirectory();
-        var defaultUpgrades = Path.Combine(currentDir, "Scripts", "upgrades");
-        var defaultDowngrades = Path.Combine(currentDir, "Scripts", "downgrades");
+        
+        // Try multiple default patterns in order of preference
+        var defaultPatterns = new[]
+        {
+            (Path.Combine(currentDir, "upgrades"), Path.Combine(currentDir, "downgrades")),
+            (Path.Combine(currentDir, "Scripts", "upgrades"), Path.Combine(currentDir, "Scripts", "downgrades"))
+        };
+        
+        // Find existing pattern or use preferred pattern if ensuring directories
+        var (defaultUpgrades, defaultDowngrades) = FindExistingPatternOrDefault(defaultPatterns, ensureDirectories);
 
-        // Use specified paths or determine defaults
+        // Use specified paths or determined defaults
         var resolvedUpgrades = DetermineUpgradesPath(upgradesPath, defaultUpgrades, ensureDirectories);
         var resolvedDowngrades = DetermineDowngradesPath(downgradesPath, defaultDowngrades, ensureDirectories);
 
         return (resolvedUpgrades, resolvedDowngrades);
     }
 
+    private static (string defaultUpgrades, string defaultDowngrades) FindExistingPatternOrDefault(
+        (string upgrades, string downgrades)[] patterns, 
+        bool ensureDirectories)
+    {
+        // If we're ensuring directories, use the preferred pattern
+        if (ensureDirectories)
+        {
+            return patterns[PreferredPatternIndex];
+        }
+        
+        // Otherwise, find an existing pattern
+        foreach (var (upgrades, downgrades) in patterns)
+        {
+            if (Directory.Exists(upgrades) && Directory.Exists(downgrades))
+            {
+                return (upgrades, downgrades);
+            }
+        }
+        
+        // No existing pattern found, return empty paths to indicate no defaults
+        return (string.Empty, string.Empty);
+    }
+    
     private static string? DetermineUpgradesPath(string? specifiedPath, string defaultPath, bool ensureDirectories)
     {
         if (!string.IsNullOrEmpty(specifiedPath))
         {
             return specifiedPath;
+        }
+        
+        if (string.IsNullOrEmpty(defaultPath))
+        {
+            return null;
         }
 
         return ensureDirectories || Directory.Exists(defaultPath) ? defaultPath : null;
@@ -88,6 +125,11 @@ public class DirectoryService : IDirectoryService
         if (!string.IsNullOrEmpty(specifiedPath))
         {
             return specifiedPath;
+        }
+        
+        if (string.IsNullOrEmpty(defaultPath))
+        {
+            return null;
         }
 
         return ensureDirectories || Directory.Exists(defaultPath) ? defaultPath : null;

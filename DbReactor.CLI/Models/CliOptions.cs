@@ -17,4 +17,7 @@ public class CliOptions
     public bool EnsureDatabase { get; set; }
     public bool EnsureDirectories { get; set; }
     public Dictionary<string, string> Variables { get; set; } = new();
+    
+    // Extended variable metadata (includes sensitivity tracking)
+    public Dictionary<string, VariableMetadata> VariableMetadata { get; set; } = new();
 }

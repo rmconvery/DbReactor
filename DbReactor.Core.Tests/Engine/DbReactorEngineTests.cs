@@ -5,6 +5,7 @@ using DbReactor.Core.Models;
 using DbReactor.Core.Execution;
 using DbReactor.Core.Journaling;
 using DbReactor.Core.Discovery;
+using System.Threading;
 
 namespace DbReactor.Core.Tests.Engine;
 
@@ -60,7 +61,7 @@ public class DbReactorEngineTests
         var engine = new DbReactorEngine(_configuration);
         var expectedResult = new DbReactorResult { Successful = true };
         
-        _mockScriptProvider.Setup(p => p.GetScripts()).Returns(new List<IScript>());
+        _mockScriptProvider.Setup(p => p.GetScriptsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<IScript>());
         _mockJournal.Setup(j => j.EnsureTableExistsAsync(_mockConnectionManager.Object, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         _mockJournal.Setup(j => j.GetExecutedMigrationsAsync(It.IsAny<CancellationToken>()))
@@ -83,7 +84,7 @@ public class DbReactorEngineTests
         // Given
         var engine = new DbReactorEngine(_configuration);
         
-        _mockScriptProvider.Setup(p => p.GetScripts()).Returns(new List<IScript>());
+        _mockScriptProvider.Setup(p => p.GetScriptsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<IScript>());
         _mockJournal.Setup(j => j.EnsureTableExistsAsync(_mockConnectionManager.Object, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         _mockJournal.Setup(j => j.HasBeenExecutedAsync(It.IsAny<IMigration>(), It.IsAny<CancellationToken>()))
@@ -106,7 +107,7 @@ public class DbReactorEngineTests
         // Given
         var engine = new DbReactorEngine(_configuration);
         
-        _mockScriptProvider.Setup(p => p.GetScripts()).Returns(new List<IScript>());
+        _mockScriptProvider.Setup(p => p.GetScriptsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<IScript>());
         _mockJournal.Setup(j => j.EnsureTableExistsAsync(_mockConnectionManager.Object, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         _mockJournal.Setup(j => j.GetExecutedMigrationsAsync(It.IsAny<CancellationToken>()))
@@ -131,7 +132,7 @@ public class DbReactorEngineTests
         var script = new Mock<IScript>();
         script.Setup(s => s.Name).Returns("001_Migration");
         
-        _mockScriptProvider.Setup(p => p.GetScripts()).Returns(new[] { script.Object });
+        _mockScriptProvider.Setup(p => p.GetScriptsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new[] { script.Object });
         _mockJournal.Setup(j => j.HasBeenExecutedAsync(It.IsAny<IMigration>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
 
@@ -153,7 +154,7 @@ public class DbReactorEngineTests
         var script = new Mock<IScript>();
         script.Setup(s => s.Name).Returns("001_Migration");
         
-        _mockScriptProvider.Setup(p => p.GetScripts()).Returns(new[] { script.Object });
+        _mockScriptProvider.Setup(p => p.GetScriptsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new[] { script.Object });
         _mockJournal.Setup(j => j.HasBeenExecutedAsync(It.IsAny<IMigration>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
@@ -175,7 +176,7 @@ public class DbReactorEngineTests
         var script = new Mock<IScript>();
         script.Setup(s => s.Name).Returns("MyApp.Scripts.001_Migration.sql");
         
-        _mockScriptProvider.Setup(p => p.GetScripts()).Returns(new[] { script.Object });
+        _mockScriptProvider.Setup(p => p.GetScriptsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new[] { script.Object });
         _mockJournal.Setup(j => j.HasBeenExecutedAsync(It.IsAny<IMigration>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
 
@@ -198,7 +199,7 @@ public class DbReactorEngineTests
         var script = new Mock<IScript>();
         script.Setup(s => s.Name).Returns("MyApp.Scripts.001_Migration.sql");
         
-        _mockScriptProvider.Setup(p => p.GetScripts()).Returns(new[] { script.Object });
+        _mockScriptProvider.Setup(p => p.GetScriptsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new[] { script.Object });
         _mockJournal.Setup(j => j.HasBeenExecutedAsync(It.IsAny<IMigration>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 

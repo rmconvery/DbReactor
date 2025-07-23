@@ -8,10 +8,12 @@ namespace DbReactor.CLI.Services.Interactive;
 public class CommandExecutor : ICommandExecutor
 {
     private readonly ICommandFactory _commandFactory;
+    private readonly VariablesCommand _variablesCommand;
 
-    public CommandExecutor(ICommandFactory commandFactory)
+    public CommandExecutor(ICommandFactory commandFactory, VariablesCommand variablesCommand)
     {
         _commandFactory = commandFactory;
+        _variablesCommand = variablesCommand;
     }
 
     public async Task<int> ExecuteCommandAsync(string commandName, string[] args)
@@ -40,6 +42,7 @@ public class CommandExecutor : ICommandExecutor
             "rollback" => _commandFactory.CreateRollbackCommand(),
             "init" => _commandFactory.CreateInitCommand(),
             "create-script" => _commandFactory.CreateCreateScriptCommand(),
+            "variables" => _variablesCommand,
             "validate" => _commandFactory.CreateValidateCommand(),
             _ => throw new ArgumentException($"Unknown command: {commandName}")
         };
