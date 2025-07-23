@@ -53,13 +53,10 @@ public class InteractiveConfigurationCollector : IInteractiveConfigurationCollec
         return AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[yellow]Database provider:[/]")
-                .AddChoices("sqlserver", "mysql", "postgresql", "sqlite")
+                .AddChoices("sqlserver")
                 .UseConverter(provider => provider switch
                 {
                     "sqlserver" => "SQL Server",
-                    "mysql" => "MySQL",
-                    "postgresql" => "PostgreSQL",
-                    "sqlite" => "SQLite",
                     _ => provider
                 }));
     }
@@ -67,9 +64,11 @@ public class InteractiveConfigurationCollector : IInteractiveConfigurationCollec
     private void CollectScriptPaths(CliOptions options)
     {
         AnsiConsole.MarkupLine("[yellow]Script Directory Configuration[/]");
+        AnsiConsole.MarkupLine("[dim]Paths can be relative to current directory or absolute.[/]");
+        AnsiConsole.WriteLine();
 
         string upgradesPath = AnsiConsole.Prompt(
-            new TextPrompt<string>("[blue]Upgrades path (leave empty for default):[/]")
+            new TextPrompt<string>("[blue]Upgrades path (relative/absolute, empty for default './upgrades'):[/]")
                 .DefaultValue("")
                 .AllowEmpty());
 
@@ -79,7 +78,7 @@ public class InteractiveConfigurationCollector : IInteractiveConfigurationCollec
         }
 
         string downgradesPath = AnsiConsole.Prompt(
-            new TextPrompt<string>("[blue]Downgrades path (leave empty for default):[/]")
+            new TextPrompt<string>("[blue]Downgrades path (relative/absolute, empty for default './downgrades'):[/]")
                 .DefaultValue("")
                 .AllowEmpty());
 

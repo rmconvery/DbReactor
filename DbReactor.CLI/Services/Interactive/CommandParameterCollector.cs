@@ -13,7 +13,6 @@ public class CommandParameterCollector : ICommandParameterCollector
             "migrate" => BuildMigrateParameters(baseConfiguration),
             "status" => BuildStatusParameters(baseConfiguration),
             "rollback" => await CollectRollbackParametersAsync(baseConfiguration),
-            "init" => await CollectInitParametersAsync(),
             "create-script" => await CollectCreateScriptParametersAsync(),
             "validate" => BuildValidateParameters(baseConfiguration),
             "exit" => Array.Empty<string>(),
@@ -79,14 +78,6 @@ public class CommandParameterCollector : ICommandParameterCollector
         return args.ToArray();
     }
 
-    private async Task<string[]> CollectInitParametersAsync()
-    {
-        var projectName = AnsiConsole.Prompt(
-            new TextPrompt<string>("[green]Project name:[/]")
-                .DefaultValue("DbReactor.Migrations"));
-
-        return new[] { projectName };
-    }
 
     private async Task<string[]> CollectCreateScriptParametersAsync()
     {

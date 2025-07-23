@@ -9,7 +9,6 @@ public class InteractiveMenuService : IInteractiveMenuService
         ("migrate", "Run database migrations"),
         ("status", "Show migration status and history"),
         ("rollback", "Rollback migrations"),
-        ("init", "Initialize project structure"),
         ("create-script", "Create new migration script"),
         ("validate", "Validate configuration"),
         ("exit", "Exit DbReactor")

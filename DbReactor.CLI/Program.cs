@@ -38,7 +38,6 @@ public class Program
             rootCommand.AddCommand(commandFactory.CreateMigrateCommand());
             rootCommand.AddCommand(commandFactory.CreateStatusCommand());
             rootCommand.AddCommand(commandFactory.CreateRollbackCommand());
-            rootCommand.AddCommand(commandFactory.CreateInitCommand());
             rootCommand.AddCommand(commandFactory.CreateCreateScriptCommand());
             rootCommand.AddCommand(commandFactory.CreateValidateCommand());
 
@@ -78,13 +77,11 @@ public class Program
         services.AddTransient<MigrateCommand>();
         services.AddTransient<StatusCommand>();
         services.AddTransient<RollbackCommand>();
-        services.AddTransient<InitCommand>();
         services.AddTransient<CreateScriptCommand>();
         services.AddTransient<ValidateCommand>();
         services.AddSingleton<IMigrationService, MigrationService>();
         services.AddSingleton<IRollbackService, RollbackService>();
         services.AddSingleton<IUserInteractionService, UserInteractionService>();
-        services.AddSingleton<IProjectInitializationService, ProjectInitializationService>();
         services.AddSingleton<IDirectoryService, DirectoryService>();
         services.AddSingleton<ITemplateService, TemplateService>();
         services.AddSingleton<IScriptTemplateService, ScriptTemplateService>();
