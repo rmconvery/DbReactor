@@ -8,7 +8,7 @@ class Program
 {
     static async Task Main(string[] args)
     {
-        string connectionString = "Server=localhost;Database=DbReactorTest;Trusted_Connection=True;TrustServerCertificate=true;";
+        string connectionString = "Server=localhost;Database=DbReactorTest;Trusted_Connection=True;TrustServerCertificate=true;MultipleActiveResultSets=true;";
 
 
         DbReactorConfiguration config = new DbReactorConfiguration()

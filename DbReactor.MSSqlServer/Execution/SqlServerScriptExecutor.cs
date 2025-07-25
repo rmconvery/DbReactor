@@ -2,10 +2,10 @@ using DbReactor.Core.Abstractions;
 using DbReactor.Core.Execution;
 using DbReactor.Core.Models;
 using DbReactor.MSSqlServer.Constants;
+using DbReactor.MSSqlServer.Utilities;
 using Microsoft.Data.SqlClient;
 using System;
-using System.Data;
-using System.Text.RegularExpressions;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -18,17 +18,8 @@ namespace DbReactor.MSSqlServer.Execution
     {
         private readonly TimeSpan _commandTimeout;
 
-        /// <summary>
-        /// Creates a new SQL Server script executor with default timeout
-        /// </summary>
-        public SqlServerScriptExecutor() : this(SqlServerConstants.Defaults.CommandTimeout)
-        {
-        }
+        public SqlServerScriptExecutor() : this(SqlServerConstants.Defaults.CommandTimeout) { }
 
-        /// <summary>
-        /// Creates a new SQL Server script executor with specified timeout
-        /// </summary>
-        /// <param name="commandTimeout">Command timeout for SQL operations</param>
         public SqlServerScriptExecutor(TimeSpan commandTimeout)
         {
             _commandTimeout = commandTimeout;
@@ -36,13 +27,13 @@ namespace DbReactor.MSSqlServer.Execution
 
         public async Task<MigrationResult> ExecuteAsync(IScript script, IConnectionManager connectionManager, CancellationToken cancellationToken = default)
         {
-            var result = new MigrationResult
+            MigrationResult result = new MigrationResult
             {
                 Script = script,
                 Successful = false
             };
 
-            var startTime = DateTime.UtcNow;
+            DateTime startTime = DateTime.UtcNow;
 
             try
             {
@@ -53,7 +44,6 @@ namespace DbReactor.MSSqlServer.Execution
             {
                 result.Error = ex;
                 result.ErrorMessage = ex.Message;
-                result.Successful = false;
             }
             finally
             {
@@ -67,7 +57,7 @@ namespace DbReactor.MSSqlServer.Execution
         {
             await connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
             {
-                using var command = new SqlCommand("SELECT @@VERSION", (SqlConnection)connection);
+                using SqlCommand command = new SqlCommand("SELECT @@VERSION", (SqlConnection)connection);
                 await command.ExecuteScalarAsync(cancellationToken);
             }, cancellationToken);
         }
@@ -77,118 +67,75 @@ namespace DbReactor.MSSqlServer.Execution
             string scriptContent = script.Script;
 
             if (string.IsNullOrWhiteSpace(scriptContent))
-            {
                 throw new InvalidOperationException("Script content is empty");
+
+            if (SqlUtilities.IsEfTransactionScript(scriptContent))
+            {
+                string scriptWithoutGo = SqlUtilities.RemoveGoStatements(scriptContent);
+                await ExecuteNonQueryAsync(scriptWithoutGo, connectionManager, cancellationToken);
+                return;
             }
 
-            // Split script by GO statements (SQL Server batch separator)
-            string[] batches = SplitScriptIntoBatches(scriptContent);
+            List<string> batches = SqlUtilities.ParseScriptIntoBatches(scriptContent);
+            bool hasManualTransactions = SqlUtilities.ContainsTransactionStatements(scriptContent);
 
             await connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
             {
-                var sqlConnection = (SqlConnection)connection;
-                SqlTransaction transaction = null;
-                bool hasManualTransaction = ContainsManualTransactionControl(scriptContent);
-
-                try
+                SqlConnection sqlConnection = (SqlConnection)connection;
+                if (hasManualTransactions)
                 {
-                    // Only start an automatic transaction if the script doesn't manage its own
-                    if (!hasManualTransaction)
+                    await ExecuteBatchesAsync(batches, sqlConnection, null, cancellationToken);
+                }
+                else
+                {
+                    using SqlTransaction transaction = sqlConnection.BeginTransaction();
+                    try
                     {
-                        transaction = sqlConnection.BeginTransaction();
-                    }
-
-                    foreach (string batch in batches)
-                    {
-                        if (string.IsNullOrWhiteSpace(batch)) continue;
-
-                        using var command = new SqlCommand(batch.Trim(), sqlConnection);
-                        command.CommandTimeout = (int)_commandTimeout.TotalSeconds;
-                        
-                        // Only set transaction if we're managing it automatically
-                        if (transaction != null)
-                        {
-                            command.Transaction = transaction;
-                        }
-
-                        await ExecuteBatchAsync(command, cancellationToken);
-                    }
-
-                    // Only commit if we started the transaction
-                    if (transaction != null)
-                    {
+                        await ExecuteBatchesAsync(batches, sqlConnection, transaction, cancellationToken);
                         transaction.Commit();
                     }
-                }
-                catch
-                {
-                    // Only rollback if we started the transaction
-                    if (transaction != null)
+                    catch
                     {
-                        try
-                        {
-                            transaction.Rollback();
-                        }
-                        catch
-                        {
-                            // Ignore rollback errors - connection will be disposed anyway
-                        }
+                        try { transaction.Rollback(); } catch { }
+                        throw;
                     }
-                    throw;
-                }
-                finally
-                {
-                    transaction?.Dispose();
                 }
             }, cancellationToken);
         }
 
-        private async Task ExecuteBatchAsync(SqlCommand command, CancellationToken cancellationToken)
+        private async Task ExecuteNonQueryAsync(string sql, IConnectionManager connectionManager, CancellationToken cancellationToken)
         {
-            string trimmedSql = command.CommandText.Trim().ToUpperInvariant();
-
-            // Check if this looks like a query that returns results
-            if (IsQueryStatement(trimmedSql))
+            await connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
             {
-                // For queries, we execute but don't expect to process results in migration context
-                using var reader = await command.ExecuteReaderAsync(cancellationToken);
-                while (await reader.ReadAsync(cancellationToken))
+                using SqlCommand command = new SqlCommand(sql, (SqlConnection)connection)
                 {
-                    // Results are consumed but not processed
+                    CommandTimeout = (int)_commandTimeout.TotalSeconds
+                };
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }, cancellationToken);
+        }
+
+        private async Task ExecuteBatchesAsync(IEnumerable<string> batches, SqlConnection connection, SqlTransaction transaction, CancellationToken cancellationToken)
+        {
+            int batchIndex = 0;
+            foreach (string batch in batches)
+            {
+                batchIndex++;
+                if (string.IsNullOrWhiteSpace(batch)) continue;
+
+                try
+                {
+                    using SqlCommand command = new SqlCommand(batch, connection, transaction)
+                    {
+                        CommandTimeout = (int)_commandTimeout.TotalSeconds
+                    };
+                    await command.ExecuteNonQueryAsync(cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception($"Error executing batch {batchIndex}:\n{batch}\n\n{ex.Message}", ex);
                 }
             }
-            else
-            {
-                // For DDL/DML statements, use ExecuteNonQuery
-                await command.ExecuteNonQueryAsync(cancellationToken);
-            }
-        }
-
-        private bool IsQueryStatement(string sql)
-        {
-            // Simple heuristic to detect SELECT statements
-            return sql.StartsWith("SELECT") ||
-                   sql.StartsWith("WITH") ||  // CTEs
-                   sql.StartsWith("EXEC") ||  // Could return results
-                   sql.StartsWith("EXECUTE");
-        }
-
-        private string[] SplitScriptIntoBatches(string script)
-        {
-            // Split on GO statements (case insensitive, must be on its own line)
-            return Regex.Split(script, @"^\s*GO\s*(\d+)?\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase);
-        }
-
-        private bool ContainsManualTransactionControl(string script)
-        {
-            // Check if the script contains explicit transaction control statements
-            var upperScript = script.ToUpperInvariant();
-            
-            bool hasBeginTransaction = Regex.IsMatch(upperScript, @"\bBEGIN\s+TRAN(SACTION)?\b", RegexOptions.IgnoreCase);
-            bool hasCommitTransaction = Regex.IsMatch(upperScript, @"\bCOMMIT(\s+TRAN(SACTION)?)?\b", RegexOptions.IgnoreCase);
-            bool hasRollbackTransaction = Regex.IsMatch(upperScript, @"\bROLLBACK(\s+TRAN(SACTION)?)?\b", RegexOptions.IgnoreCase);
-            
-            return hasBeginTransaction || hasCommitTransaction || hasRollbackTransaction;
         }
     }
 }

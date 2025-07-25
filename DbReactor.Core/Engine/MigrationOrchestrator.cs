@@ -173,8 +173,11 @@ namespace DbReactor.Core.Engine
 
                 _configuration.LogProvider?.WriteInformation("Starting database downgrade...");
 
-                // Get entries to downgrade
-                IEnumerable<MigrationJournalEntry> entriesToDowngrade = await _filteringService.GetEntriesToDowngradeAsync(cancellationToken);
+                // Get entries to downgrade and filter out those without a downgrade script
+                IEnumerable<MigrationJournalEntry> entriesToDowngrade =
+                    (await _filteringService.GetEntriesToDowngradeAsync(cancellationToken))
+                    .Where(e => !string.IsNullOrWhiteSpace(e.DowngradeScript))
+                    .ToList();
 
                 if (!entriesToDowngrade.Any())
                 {
@@ -243,9 +246,12 @@ namespace DbReactor.Core.Engine
 
                 _configuration.LogProvider?.WriteInformation("Starting last migration downgrade...");
 
-                // Get the last executed migration
-                var executedMigrations = await _configuration.MigrationJournal.GetExecutedMigrationsAsync(cancellationToken);
-                var lastMigration = executedMigrations.OrderByDescending(m => m.MigratedOn).FirstOrDefault();
+                // Get the last executed migration that has a downgrade script
+                IEnumerable<MigrationJournalEntry> executedMigrations = await _configuration.MigrationJournal.GetExecutedMigrationsAsync(cancellationToken);
+                MigrationJournalEntry lastMigration = executedMigrations
+                    .Where(m => !string.IsNullOrWhiteSpace(m.DowngradeScript))
+                    .OrderByDescending(m => m.MigratedOn)
+                    .FirstOrDefault();
 
                 if (lastMigration == null)
                 {
