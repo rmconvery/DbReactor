@@ -1,0 +1,119 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  CONFIGURATION: Release
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build solution
+      run: dotnet build --configuration ${{ env.CONFIGURATION }} --no-restore
+    
+    - name: Run tests
+      run: dotnet test --configuration ${{ env.CONFIGURATION }} --no-build --verbosity normal --logger trx --results-directory "TestResults" --collect:"XPlat Code Coverage"
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: TestResults/*.trx
+    
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: coverage-reports
+        path: TestResults/*/coverage.cobertura.xml
+
+  build-packages:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: success()
+    
+    strategy:
+      matrix:
+        project: 
+          - { name: "DbReactor.Core", path: "DbReactor.Core/DbReactor.Core.csproj" }
+          - { name: "DbReactor.MSSqlServer", path: "DbReactor.MSSqlServer/DbReactor.MSSqlServer.csproj" }
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Restore dependencies
+      run: dotnet restore ${{ matrix.project.path }}
+    
+    - name: Build project
+      run: dotnet build ${{ matrix.project.path }} --configuration ${{ env.CONFIGURATION }} --no-restore
+    
+    - name: Create NuGet package (CI build)
+      run: |
+        # Create version with build number for CI
+        CI_VERSION="1.0.0-ci-${{ github.run_number }}"
+        sed -i "s/<Version>.*<\/Version>/<Version>$CI_VERSION<\/Version>/" ${{ matrix.project.path }}
+        dotnet pack ${{ matrix.project.path }} --configuration ${{ env.CONFIGURATION }} --no-build --output ./ci-packages
+    
+    - name: Upload CI packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: ci-packages-${{ matrix.project.name }}
+        path: ./ci-packages/*.nupkg
+
+  validate-packages:
+    runs-on: ubuntu-latest
+    needs: build-packages
+    if: success()
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Download all CI packages
+      uses: actions/download-artifact@v4
+      with:
+        pattern: ci-packages-*
+        path: ./all-packages
+        merge-multiple: true
+    
+    - name: List packages
+      run: |
+        echo "Built packages:"
+        ls -la ./all-packages/
+    
+    - name: Install dotnet-validate tool
+      run: dotnet tool install -g dotnet-validate
+    
+    - name: Validate packages
+      run: |
+        for package in ./all-packages/*.nupkg; do
+          echo "Validating $package"
+          dotnet-validate package local "$package"
+        done

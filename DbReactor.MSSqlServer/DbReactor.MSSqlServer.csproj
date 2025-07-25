@@ -4,6 +4,23 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <LangVersion>8.0</LangVersion>
     
+    <!-- Package Information -->
+    <PackageId>DbReactor.MSSqlServer</PackageId>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Authors>Robert Convery</Authors>
+    <Company>The Critical Mass Software</Company>
+    <Product>DbReactor</Product>
+    <Description>SQL Server database provider for DbReactor .NET database migration system. Provides complete SQL Server support including connection management, script execution, and migration journaling.</Description>
+    <PackageTags>database;migration;sqlserver;mssql;schema;versioning;sql</PackageTags>
+    <PackageProjectUrl>https://github.com/rmconvery/DbReactor</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/rmconvery/DbReactor</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReleaseNotes>Initial release of DbReactor.MSSqlServer provider</PackageReleaseNotes>
+    
     <!-- Documentation Generation -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>
