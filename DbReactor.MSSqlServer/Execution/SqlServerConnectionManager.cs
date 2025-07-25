@@ -16,7 +16,28 @@ namespace DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.
 
         public SqlServerConnectionManager(string connectionString)
         {
-            _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            if (string.IsNullOrEmpty(connectionString))
+                throw new ArgumentNullException(nameof(connectionString));
+
+            // Ensure MARS is enabled for transaction handling across GO statements
+            _connectionString = EnsureMarsEnabled(connectionString);
+        }
+
+        /// <summary>
+        /// Ensures that MARS (Multiple Active Result Sets) is enabled in the connection string
+        /// This is required for proper transaction handling across GO statements
+        /// </summary>
+        private static string EnsureMarsEnabled(string connectionString)
+        {
+            var builder = new SqlConnectionStringBuilder(connectionString);
+            
+            // Enable MARS if not already specified
+            if (!builder.MultipleActiveResultSets)
+            {
+                builder.MultipleActiveResultSets = true;
+            }
+
+            return builder.ConnectionString;
         }
 
         public async Task<IDbConnection> CreateConnectionAsync(CancellationToken cancellationToken = default)

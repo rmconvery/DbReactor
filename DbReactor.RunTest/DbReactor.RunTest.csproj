@@ -11,6 +11,7 @@
   <ItemGroup>
     <None Remove="Scripts\downgrades\20250714\M004_CreateOrdersTable.sql" />
     <None Remove="Scripts\upgrades\20250714\M004_CreateOrdersTable.sql" />
+    <None Remove="Scripts\upgrades\20250714\M006_RulesInit.sql" />
   </ItemGroup>
 
   <!-- Mixed script structure with SQL and code scripts -->
@@ -23,6 +24,7 @@
     <EmbeddedResource Include="Scripts\upgrades\20250714\M003_CreateProductsTable.sql" />
     <EmbeddedResource Include="Scripts\upgrades\20250714\M004_CreateOrdersTable.sql" />
     <EmbeddedResource Include="Scripts\upgrades\20250714\M005_EnvironmentSpecificSettings.sql" />
+    <EmbeddedResource Include="Scripts\upgrades\20250714\M006_RulesInit.sql" />
   </ItemGroup>
 
   <!-- Code scripts are automatically included by .NET SDK -->

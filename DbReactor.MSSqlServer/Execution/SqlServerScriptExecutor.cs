@@ -3,8 +3,10 @@ using DbReactor.Core.Execution;
 using DbReactor.Core.Models;
 using DbReactor.MSSqlServer.Constants;
 using Microsoft.Data.SqlClient;
+using Microsoft.SqlServer.TransactSql.ScriptDom;
 using System;
-using System.Data;
+using System.Collections.Generic;
+using System.IO;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,17 +20,10 @@ namespace DbReactor.MSSqlServer.Execution
     {
         private readonly TimeSpan _commandTimeout;
 
-        /// <summary>
-        /// Creates a new SQL Server script executor with default timeout
-        /// </summary>
         public SqlServerScriptExecutor() : this(SqlServerConstants.Defaults.CommandTimeout)
         {
         }
 
-        /// <summary>
-        /// Creates a new SQL Server script executor with specified timeout
-        /// </summary>
-        /// <param name="commandTimeout">Command timeout for SQL operations</param>
         public SqlServerScriptExecutor(TimeSpan commandTimeout)
         {
             _commandTimeout = commandTimeout;
@@ -36,13 +31,13 @@ namespace DbReactor.MSSqlServer.Execution
 
         public async Task<MigrationResult> ExecuteAsync(IScript script, IConnectionManager connectionManager, CancellationToken cancellationToken = default)
         {
-            var result = new MigrationResult
+            MigrationResult result = new MigrationResult
             {
                 Script = script,
                 Successful = false
             };
 
-            var startTime = DateTime.UtcNow;
+            DateTime startTime = DateTime.UtcNow;
 
             try
             {
@@ -67,7 +62,7 @@ namespace DbReactor.MSSqlServer.Execution
         {
             await connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
             {
-                using var command = new SqlCommand("SELECT @@VERSION", (SqlConnection)connection);
+                using SqlCommand command = new SqlCommand("SELECT @@VERSION", (SqlConnection)connection);
                 await command.ExecuteScalarAsync(cancellationToken);
             }, cancellationToken);
         }
@@ -77,118 +72,196 @@ namespace DbReactor.MSSqlServer.Execution
             string scriptContent = script.Script;
 
             if (string.IsNullOrWhiteSpace(scriptContent))
-            {
                 throw new InvalidOperationException("Script content is empty");
+
+            // Special handling for EF/SSMS-style transaction scripts
+            if (IsEfTransactionScript(scriptContent))
+            {
+                string scriptWithoutGo = RemoveGoStatements(scriptContent);
+                await connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
+                {
+                    SqlConnection sqlConnection = (SqlConnection)connection;
+                    using SqlCommand command = new SqlCommand(scriptWithoutGo, sqlConnection);
+                    command.CommandTimeout = (int)_commandTimeout.TotalSeconds;
+                    await command.ExecuteNonQueryAsync(cancellationToken);
+                }, cancellationToken);
+                return;
             }
 
-            // Split script by GO statements (SQL Server batch separator)
-            string[] batches = SplitScriptIntoBatches(scriptContent);
+            // Normal batch execution
+            List<string> batches = ParseScriptIntoBatches(scriptContent);
 
             await connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
             {
-                var sqlConnection = (SqlConnection)connection;
-                SqlTransaction transaction = null;
-                bool hasManualTransaction = ContainsManualTransactionControl(scriptContent);
+                SqlConnection sqlConnection = (SqlConnection)connection;
+                bool hasManualTransactions = ContainsTransactionStatements(scriptContent);
 
-                try
+                if (hasManualTransactions)
                 {
-                    // Only start an automatic transaction if the script doesn't manage its own
-                    if (!hasManualTransaction)
+                    for (int i = 0; i < batches.Count; i++)
                     {
-                        transaction = sqlConnection.BeginTransaction();
-                    }
-
-                    foreach (string batch in batches)
-                    {
+                        string batch = batches[i];
                         if (string.IsNullOrWhiteSpace(batch)) continue;
 
-                        using var command = new SqlCommand(batch.Trim(), sqlConnection);
-                        command.CommandTimeout = (int)_commandTimeout.TotalSeconds;
-                        
-                        // Only set transaction if we're managing it automatically
-                        if (transaction != null)
-                        {
-                            command.Transaction = transaction;
-                        }
-
-                        await ExecuteBatchAsync(command, cancellationToken);
-                    }
-
-                    // Only commit if we started the transaction
-                    if (transaction != null)
-                    {
-                        transaction.Commit();
-                    }
-                }
-                catch
-                {
-                    // Only rollback if we started the transaction
-                    if (transaction != null)
-                    {
                         try
                         {
-                            transaction.Rollback();
+                            using SqlCommand command = new SqlCommand(batch, sqlConnection);
+                            command.CommandTimeout = (int)_commandTimeout.TotalSeconds;
+                            await command.ExecuteNonQueryAsync(cancellationToken);
                         }
-                        catch
+                        catch (Exception ex)
                         {
-                            // Ignore rollback errors - connection will be disposed anyway
+                            throw new Exception($"Error executing batch {i + 1}:\n{batch}\n\n{ex.Message}", ex);
                         }
                     }
-                    throw;
                 }
-                finally
+                else
                 {
-                    transaction?.Dispose();
+                    using SqlTransaction transaction = sqlConnection.BeginTransaction();
+                    try
+                    {
+                        for (int i = 0; i < batches.Count; i++)
+                        {
+                            string batch = batches[i];
+                            if (string.IsNullOrWhiteSpace(batch)) continue;
+
+                            try
+                            {
+                                using SqlCommand command = new SqlCommand(batch, sqlConnection, transaction);
+                                command.CommandTimeout = (int)_commandTimeout.TotalSeconds;
+                                await command.ExecuteNonQueryAsync(cancellationToken);
+                            }
+                            catch (Exception ex)
+                            {
+                                try { transaction.Rollback(); } catch { }
+                                throw new Exception($"Error executing batch {i + 1}:\n{batch}\n\n{ex.Message}", ex);
+                            }
+                        }
+                        transaction.Commit();
+                    }
+                    catch
+                    {
+                        throw;
+                    }
                 }
             }, cancellationToken);
         }
 
-        private async Task ExecuteBatchAsync(SqlCommand command, CancellationToken cancellationToken)
+        /// <summary>
+        /// Detects EF/SSMS-style transaction scripts that use GO between BEGIN TRANSACTION and COMMIT/ROLLBACK.
+        /// </summary>
+        private bool IsEfTransactionScript(string scriptContent)
         {
-            string trimmedSql = command.CommandText.Trim().ToUpperInvariant();
+            // Looks for BEGIN TRANSACTION followed by GO, then COMMIT/ROLLBACK in a later batch
+            // This is a heuristic, but matches EF and SSMS script output
+            return Regex.IsMatch(
+                scriptContent,
+                @"BEGIN\s+TRAN(SACTION)?\b.*?^\s*GO\s*$.*?(COMMIT|ROLLBACK)\b.*?^\s*GO\s*$",
+                RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Singleline);
+        }
 
-            // Check if this looks like a query that returns results
-            if (IsQueryStatement(trimmedSql))
+        /// <summary>
+        /// Removes all GO batch separators from a script.
+        /// </summary>
+        private string RemoveGoStatements(string scriptContent)
+        {
+            // Remove lines that contain only GO or GO n (optionally with comments)
+            return Regex.Replace(
+                scriptContent,
+                @"^\s*GO(?:\s+\d+)?\s*(?:--.*)?$",
+                string.Empty,
+                RegexOptions.Multiline | RegexOptions.IgnoreCase);
+        }
+
+        private List<string> ParseScriptIntoBatches(string scriptContent)
+        {
+            // Try ScriptDom batch parsing first
+            try
             {
-                // For queries, we execute but don't expect to process results in migration context
-                using var reader = await command.ExecuteReaderAsync(cancellationToken);
-                while (await reader.ReadAsync(cancellationToken))
+                TSql150Parser parser = new TSql150Parser(true);
+                using StringReader reader = new StringReader(scriptContent);
+                TSqlFragment fragment = parser.Parse(reader, out IList<ParseError> errors);
+
+                if (errors.Count == 0 && fragment is TSqlScript script)
                 {
-                    // Results are consumed but not processed
+                    List<string> batches = new List<string>();
+                    foreach (TSqlBatch batch in script.Batches)
+                    {
+                        string batchSql = GetSqlFromFragment(batch, scriptContent);
+                        if (!string.IsNullOrWhiteSpace(batchSql))
+                            batches.Add(batchSql);
+                    }
+                    if (batches.Count > 0)
+                        return batches;
                 }
             }
-            else
+            catch
             {
-                // For DDL/DML statements, use ExecuteNonQuery
-                await command.ExecuteNonQueryAsync(cancellationToken);
+                // Ignore and fallback
             }
+            // Fallback: robust regex-based splitting
+            return SplitOnGoStatements(scriptContent);
         }
 
-        private bool IsQueryStatement(string sql)
+        private List<string> SplitOnGoStatements(string scriptContent)
         {
-            // Simple heuristic to detect SELECT statements
-            return sql.StartsWith("SELECT") ||
-                   sql.StartsWith("WITH") ||  // CTEs
-                   sql.StartsWith("EXEC") ||  // Could return results
-                   sql.StartsWith("EXECUTE");
+            // Regex: matches lines with only GO or GO n (optionally with comments)
+            Regex regex = new Regex(
+                @"^\s*GO(?:\s+(\d+))?\s*(?:--.*)?$",
+                RegexOptions.Multiline | RegexOptions.IgnoreCase);
+
+            List<string> batches = new List<string>();
+            int lastPos = 0;
+            MatchCollection matches = regex.Matches(scriptContent);
+
+            foreach (Match match in matches)
+            {
+                int len = match.Index - lastPos;
+                if (len > 0)
+                {
+                    string batch = scriptContent.Substring(lastPos, len).Trim();
+                    if (!string.IsNullOrWhiteSpace(batch))
+                    {
+                        int repeat = 1;
+                        if (match.Groups[1].Success && int.TryParse(match.Groups[1].Value, out int n) && n > 1)
+                            repeat = n;
+                        for (int i = 0; i < repeat; i++)
+                            batches.Add(batch);
+                    }
+                }
+                lastPos = match.Index + match.Length;
+            }
+            // Add the last batch
+            if (lastPos < scriptContent.Length)
+            {
+                string batch = scriptContent.Substring(lastPos).Trim();
+                if (!string.IsNullOrWhiteSpace(batch))
+                    batches.Add(batch);
+            }
+            return batches;
         }
 
-        private string[] SplitScriptIntoBatches(string script)
+        private string GetSqlFromFragment(TSqlFragment fragment, string originalScript)
         {
-            // Split on GO statements (case insensitive, must be on its own line)
-            return Regex.Split(script, @"^\s*GO\s*(\d+)?\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase);
+            if (fragment == null) return string.Empty;
+            int startOffset = fragment.StartOffset;
+            int length = fragment.FragmentLength;
+            if (startOffset >= 0 && length > 0 && startOffset + length <= originalScript.Length)
+                return originalScript.Substring(startOffset, length);
+            return string.Empty;
         }
 
-        private bool ContainsManualTransactionControl(string script)
+        private bool ContainsTransactionStatements(string scriptContent)
         {
-            // Check if the script contains explicit transaction control statements
-            var upperScript = script.ToUpperInvariant();
-            
-            bool hasBeginTransaction = Regex.IsMatch(upperScript, @"\bBEGIN\s+TRAN(SACTION)?\b", RegexOptions.IgnoreCase);
-            bool hasCommitTransaction = Regex.IsMatch(upperScript, @"\bCOMMIT(\s+TRAN(SACTION)?)?\b", RegexOptions.IgnoreCase);
-            bool hasRollbackTransaction = Regex.IsMatch(upperScript, @"\bROLLBACK(\s+TRAN(SACTION)?)?\b", RegexOptions.IgnoreCase);
-            
-            return hasBeginTransaction || hasCommitTransaction || hasRollbackTransaction;
+            string upperScript = scriptContent.ToUpperInvariant();
+            return upperScript.Contains("BEGIN TRANSACTION") ||
+                   upperScript.Contains("BEGIN TRAN") ||
+                   upperScript.Contains("COMMIT TRANSACTION") ||
+                   upperScript.Contains("COMMIT TRAN") ||
+                   upperScript.Contains("ROLLBACK TRANSACTION") ||
+                   upperScript.Contains("ROLLBACK TRAN") ||
+                   upperScript.Contains("COMMIT;") ||
+                   upperScript.Contains("ROLLBACK;");
         }
     }
 }

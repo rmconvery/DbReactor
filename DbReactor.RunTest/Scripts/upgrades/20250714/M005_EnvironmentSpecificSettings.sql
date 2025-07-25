@@ -22,3 +22,6 @@ GO
 -- Create index for tenant lookups
 CREATE INDEX IX_${Environment}_Configuration_TenantId ON ${Environment}_Configuration(TenantId);
 GO
+
+COMMIT;
+GO

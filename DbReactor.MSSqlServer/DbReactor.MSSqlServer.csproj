@@ -45,6 +45,7 @@
     
     <!-- Source Link support -->
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.SqlServer.TransactSql.ScriptDom" Version="[150.4897.1,171.0.0)" />
   </ItemGroup>
 
   <ItemGroup>
