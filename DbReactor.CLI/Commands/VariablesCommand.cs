@@ -1,9 +1,9 @@
-using System.CommandLine;
 using DbReactor.CLI.Constants;
 using DbReactor.CLI.Models;
 using DbReactor.CLI.Services;
 using Microsoft.Extensions.Logging;
 using Spectre.Console;
+using System.CommandLine;
 
 namespace DbReactor.CLI.Commands;
 
@@ -34,22 +34,22 @@ public class VariablesCommand : Command
 
     private Command CreateListCommand()
     {
-        var command = new Command("list", "List all configured variables");
-        var configOption = new Option<string?>("--config", "Path to configuration file");
-        var showValuesOption = new Option<bool>("--show-values", "Show variable values (masked for sensitive variables)");
+        Command command = new Command("list", "List all configured variables");
+        Option<string?> configOption = new Option<string?>("--config", "Path to configuration file");
+        Option<bool> showValuesOption = new Option<bool>("--show-values", "Show variable values (masked for sensitive variables)");
 
         command.AddOption(configOption);
         command.AddOption(showValuesOption);
 
         command.SetHandler(async (context) =>
         {
-            var configPath = context.ParseResult.GetValueForOption(configOption);
-            var showValues = context.ParseResult.GetValueForOption(showValuesOption);
+            string? configPath = context.ParseResult.GetValueForOption(configOption);
+            bool showValues = context.ParseResult.GetValueForOption(showValuesOption);
 
             try
             {
-                var variables = await _variableManagementService.GetVariablesAsync(configPath, context.GetCancellationToken());
-                var metadata = await LoadVariableMetadataAsync(configPath, context.GetCancellationToken());
+                Dictionary<string, string> variables = await _variableManagementService.GetVariablesAsync(configPath, context.GetCancellationToken());
+                Dictionary<string, VariableMetadata> metadata = await LoadVariableMetadataAsync(configPath, context.GetCancellationToken());
 
                 if (!variables.Any())
                 {
@@ -61,12 +61,12 @@ public class VariablesCommand : Command
                 _outputService.WriteSuccess($"Found {variables.Count} variable(s):");
                 _outputService.WriteInfo("");
 
-                foreach (var kvp in variables.OrderBy(v => v.Key))
+                foreach (KeyValuePair<string, string> kvp in variables.OrderBy(v => v.Key))
                 {
                     if (showValues)
                     {
                         bool isSensitive = metadata.GetValueOrDefault(kvp.Key)?.IsSensitive ?? false;
-                        var displayValue = isSensitive ? MaskSensitiveValue(kvp.Value) : kvp.Value;
+                        string displayValue = isSensitive ? MaskSensitiveValue(kvp.Value) : kvp.Value;
                         _outputService.WriteInfo($"  {kvp.Key} = {displayValue}");
                     }
                     else
@@ -90,10 +90,10 @@ public class VariablesCommand : Command
 
     private Command CreateSetCommand()
     {
-        var command = new Command("set", "Set a variable value");
-        var keyArgument = new Argument<string>("key", "Variable key");
-        var valueArgument = new Argument<string>("value", "Variable value");
-        var configOption = new Option<string?>("--config", "Path to configuration file");
+        Command command = new Command("set", "Set a variable value");
+        Argument<string> keyArgument = new Argument<string>("key", "Variable key");
+        Argument<string> valueArgument = new Argument<string>("value", "Variable value");
+        Option<string?> configOption = new Option<string?>("--config", "Path to configuration file");
 
         command.AddArgument(keyArgument);
         command.AddArgument(valueArgument);
@@ -101,9 +101,9 @@ public class VariablesCommand : Command
 
         command.SetHandler(async (context) =>
         {
-            var key = context.ParseResult.GetValueForArgument(keyArgument);
-            var value = context.ParseResult.GetValueForArgument(valueArgument);
-            var configPath = context.ParseResult.GetValueForOption(configOption);
+            string key = context.ParseResult.GetValueForArgument(keyArgument);
+            string value = context.ParseResult.GetValueForArgument(valueArgument);
+            string? configPath = context.ParseResult.GetValueForOption(configOption);
 
             try
             {
@@ -124,17 +124,17 @@ public class VariablesCommand : Command
 
     private Command CreateRemoveCommand()
     {
-        var command = new Command("remove", "Remove a variable");
-        var keyArgument = new Argument<string>("key", "Variable key to remove");
-        var configOption = new Option<string?>("--config", "Path to configuration file");
+        Command command = new Command("remove", "Remove a variable");
+        Argument<string> keyArgument = new Argument<string>("key", "Variable key to remove");
+        Option<string?> configOption = new Option<string?>("--config", "Path to configuration file");
 
         command.AddArgument(keyArgument);
         command.AddOption(configOption);
 
         command.SetHandler(async (context) =>
         {
-            var key = context.ParseResult.GetValueForArgument(keyArgument);
-            var configPath = context.ParseResult.GetValueForOption(configOption);
+            string key = context.ParseResult.GetValueForArgument(keyArgument);
+            string? configPath = context.ParseResult.GetValueForOption(configOption);
 
             try
             {
@@ -155,21 +155,21 @@ public class VariablesCommand : Command
 
     private Command CreateClearCommand()
     {
-        var command = new Command("clear", "Clear all variables");
-        var configOption = new Option<string?>("--config", "Path to configuration file");
-        var forceOption = new Option<bool>("--force", "Skip confirmation prompt");
+        Command command = new Command("clear", "Clear all variables");
+        Option<string?> configOption = new Option<string?>("--config", "Path to configuration file");
+        Option<bool> forceOption = new Option<bool>("--force", "Skip confirmation prompt");
 
         command.AddOption(configOption);
         command.AddOption(forceOption);
 
         command.SetHandler(async (context) =>
         {
-            var configPath = context.ParseResult.GetValueForOption(configOption);
-            var force = context.ParseResult.GetValueForOption(forceOption);
+            string? configPath = context.ParseResult.GetValueForOption(configOption);
+            bool force = context.ParseResult.GetValueForOption(forceOption);
 
             try
             {
-                var variables = await _variableManagementService.GetVariablesAsync(configPath, context.GetCancellationToken());
+                Dictionary<string, string> variables = await _variableManagementService.GetVariablesAsync(configPath, context.GetCancellationToken());
 
                 if (!variables.Any())
                 {
@@ -203,19 +203,19 @@ public class VariablesCommand : Command
 
     private Command CreateManageCommand()
     {
-        var command = new Command("manage", "Interactively manage variables");
-        var configOption = new Option<string?>("--config", "Path to configuration file");
+        Command command = new Command("manage", "Interactively manage variables");
+        Option<string?> configOption = new Option<string?>("--config", "Path to configuration file");
 
         command.AddOption(configOption);
 
         command.SetHandler(async (context) =>
         {
-            var configPath = context.ParseResult.GetValueForOption(configOption);
+            string? configPath = context.ParseResult.GetValueForOption(configOption);
 
             try
             {
-                var currentVariables = await _variableManagementService.GetVariablesAsync(configPath, context.GetCancellationToken());
-                var updatedVariables = await _variableManagementService.ManageVariablesInteractivelyAsync(currentVariables, context.GetCancellationToken());
+                Dictionary<string, string> currentVariables = await _variableManagementService.GetVariablesAsync(configPath, context.GetCancellationToken());
+                Dictionary<string, string> updatedVariables = await _variableManagementService.ManageVariablesInteractivelyAsync(currentVariables, context.GetCancellationToken());
 
                 // Only save if variables were actually changed
                 if (!AreVariablesEqual(currentVariables, updatedVariables))
@@ -245,19 +245,19 @@ public class VariablesCommand : Command
     {
         try
         {
-            var path = configPath ?? Path.Combine(Directory.GetCurrentDirectory(), "dbreactor.json");
-            
+            string path = configPath ?? Path.Combine(Directory.GetCurrentDirectory(), "dbreactor.json");
+
             if (!File.Exists(path))
             {
                 return new Dictionary<string, VariableMetadata>();
             }
 
-            var json = await File.ReadAllTextAsync(path, cancellationToken);
-            var options = System.Text.Json.JsonSerializer.Deserialize<CliOptions>(json, new System.Text.Json.JsonSerializerOptions
+            string json = await File.ReadAllTextAsync(path, cancellationToken);
+            CliOptions? options = System.Text.Json.JsonSerializer.Deserialize<CliOptions>(json, new System.Text.Json.JsonSerializerOptions
             {
                 PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
             });
-            
+
             return options?.VariableMetadata ?? new Dictionary<string, VariableMetadata>();
         }
         catch (Exception ex)
@@ -287,6 +287,6 @@ public class VariablesCommand : Command
         if (dict1.Count != dict2.Count)
             return false;
 
-        return dict1.All(kvp => dict2.TryGetValue(kvp.Key, out var value) && value == kvp.Value);
+        return dict1.All(kvp => dict2.TryGetValue(kvp.Key, out string? value) && value == kvp.Value);
     }
 }

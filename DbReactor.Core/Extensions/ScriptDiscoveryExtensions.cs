@@ -23,6 +23,23 @@ namespace DbReactor.Core.Extensions
             if (provider == null) throw new ArgumentNullException(nameof(provider));
 
             config.ScriptProviders.Add(provider);
+            ConfigurationUtility.RefreshMigrationBuilder(config);
+            return config;
+        }
+
+        /// <summary>
+        /// Sets a custom downgrade resolver for the configuration
+        /// </summary>
+        /// <param name="config">The configuration to extend</param>
+        /// <param name="downgradeResolver">Downgrade resolver to use</param>
+        /// <returns>The configuration for method chaining</returns>
+        public static DbReactorConfiguration AddDowngradeResolver(this DbReactorConfiguration config, IDowngradeResolver downgradeResolver)
+        {
+            if (downgradeResolver == null) throw new ArgumentNullException(nameof(downgradeResolver));
+
+            config.DowngradeResolver = downgradeResolver;
+            config.AllowDowngrades = true;
+            ConfigurationUtility.RefreshMigrationBuilder(config);
             return config;
         }
 

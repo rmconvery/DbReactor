@@ -68,7 +68,7 @@ class Program
         var engine = new DbReactorEngine(config);
 
         // Preview migrations before execution (dry run)
-        var dryRunResult = await engine.PreviewRunAsync();
+        var dryRunResult = await engine.RunPreviewAsync();
         Console.WriteLine($"Would execute {dryRunResult.PendingMigrations} migrations");
 
         // Execute migrations
@@ -129,8 +129,8 @@ var config = new DbReactorConfiguration()
     .UseSqlServer(connectionString)
     .UseStandardFolderStructure(typeof(Program).Assembly)
     .UseConsoleLogging()              // Built-in console logging
-    .UseFileLogging("logs/db.log")    // Built-in file logging
-    .LogProvider = new MyLogProvider(); // Custom logging
+    .AddLogProvider(new FileLogProvider("logs/db.log"))    // File logging
+    .AddLogProvider(new MyLogProvider()); // Custom logging
 ```
 
 ## 6. Running Migrations
@@ -140,7 +140,7 @@ var config = new DbReactorConfiguration()
 var engine = new DbReactorEngine(config);
 
 // Preview what would be executed
-var dryRunResult = await engine.PreviewRunAsync();
+var dryRunResult = await engine.RunPreviewAsync();
 
 Console.WriteLine($"Total migrations: {dryRunResult.TotalMigrations}");
 Console.WriteLine($"Pending upgrades: {dryRunResult.PendingUpgrades}");
@@ -172,10 +172,11 @@ Console.WriteLine($"Found {pendingMigrations.Count()} pending migrations");
 var config = new DbReactorConfiguration()
     .UseSqlServer(connectionString)
     .UseStandardFolderStructure(typeof(Program).Assembly)
-    .AllowDowngrades(true);
+    // Note: Downgrade support is enabled automatically when using downgrade resolvers
+    .UseDowngradesFromFolder(assembly, "MyApp.Scripts", "downgrades");
 
 var engine = new DbReactorEngine(config);
-var result = await engine.RunDowngradeAsync();
+var result = await engine.ApplyDowngradesAsync();
 ```
 
 ## 7. Example Migration Files
@@ -234,14 +235,15 @@ try
     
     if (result.Successful)
     {
-        Console.WriteLine($"Executed {result.ExecutedMigrations.Count()} migrations");
+        Console.WriteLine($"Executed {result.Scripts.Count()} migrations");
     }
     else
     {
         Console.WriteLine($"Failed: {result.ErrorMessage}");
-        if (result.FailedMigration != null)
+        if (result.Scripts.Any(s => !s.Successful))
         {
-            Console.WriteLine($"Failed migration: {result.FailedMigration.Name}");
+            var failed = result.Scripts.First(s => !s.Successful);
+            Console.WriteLine($"Failed migration: {failed.Name}");
         }
     }
 }

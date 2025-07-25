@@ -70,11 +70,17 @@ The `DbReactorEngine` orchestrates migration execution:
 var engine = new DbReactorEngine(config);
 
 // Preview migrations before execution (dry run)
-var dryRunResult = await engine.PreviewRunAsync();
+var dryRunResult = await engine.RunPreviewAsync();
 Console.WriteLine($"Would execute {dryRunResult.PendingMigrations} migrations");
 
-// Execute migrations
+// Execute migrations (async)
 var result = await engine.RunAsync();
+
+// Or use synchronous wrapper methods
+var result = engine.Run();                    // Synchronous run
+var upgradeResult = engine.ApplyUpgrades();   // Apply upgrades only
+var downgradeResult = engine.ApplyDowngrades(); // Apply downgrades only
+bool hasPending = engine.HasPendingUpgrades(); // Check for pending upgrades
 
 // Check results
 if (result.Successful)
@@ -111,6 +117,18 @@ DbReactor.Core provides several ways to discover migration scripts:
 // Looks for classes implementing ICodeScript
 ```
 
+#### File System Scripts
+```csharp
+// Single directory
+.UseFileSystemScripts("/path/to/scripts", ".sql", recursive: true)
+
+// Standard folder structure on file system
+.UseFileSystemFolderStructure("/path/to/base", "upgrades", "downgrades")
+
+// File system downgrades
+.UseFileSystemDowngrades("/path/to/downgrades")
+```
+
 ### Migration Ordering
 
 Control the order in which migrations are executed:
@@ -143,8 +161,8 @@ Built-in logging providers:
 
 ```csharp
 .UseConsoleLogging()           // Log to console
-.UseFileLogging("logs/db.log") // Log to file  
-.LogProvider = new CustomLogProvider() // Custom logging
+.AddLogProvider(new FileLogProvider("logs/db.log")) // Log to file  
+.AddLogProvider(new CustomLogProvider()) // Custom logging
 ```
 
 ## Core Interfaces
@@ -203,7 +221,7 @@ var config = new DbReactorConfiguration()
 ```csharp
 var config = new DbReactorConfiguration()
     .UseSqlServer(connectionString)
-    .UseCustomScriptDiscovery(new MyCustomScriptProvider());
+    .AddScriptProvider(new MyCustomScriptProvider());
 ```
 
 ### Dry Run Mode (Preview)
@@ -214,7 +232,7 @@ Preview what migrations would be executed without actually running them:
 var engine = new DbReactorEngine(config);
 
 // Preview migrations 
-var dryRunResult = await engine.PreviewRunAsync();
+var dryRunResult = await engine.RunPreviewAsync();
 
 // Access detailed information
 Console.WriteLine($"Total migrations: {dryRunResult.TotalMigrations}");
@@ -236,7 +254,7 @@ Console.WriteLine($"Already executed: {dryRunResult.SkippedMigrations}");
 var config = new DbReactorConfiguration()
     .UseSqlServer(connectionString)
     .UseStandardFolderStructure(assembly)
-    .AllowDowngrades(true); // Enable downgrade operations
+    // Note: Downgrade support is enabled automatically when using downgrade resolvers
 ```
 
 ## File Structure
@@ -264,6 +282,132 @@ M003_CreateIndexes.sql
 ```
 20250716_001_CreateUsersTable.sql
 V1_0_1_CreateUsersTable.sql
+```
+
+## Custom Extensibility
+
+DbReactor.Core provides extension methods to plug in custom implementations of core interfaces, allowing you to customize any aspect of the migration process:
+
+### Adding Custom Implementations
+
+```csharp
+var config = new DbReactorConfiguration()
+    // Custom script discovery
+    .AddScriptProvider(new MyCustomScriptProvider())
+    .AddDowngradeResolver(new MyCustomDowngradeResolver())
+    
+    // Custom execution components
+    .AddConnectionManager(new MyCustomConnectionManager())
+    .AddScriptExecutor(new MyCustomScriptExecutor())
+    .AddMigrationJournal(new MyCustomMigrationJournal())
+    
+    // Custom database management
+    .AddDatabaseProvisioner(new MyCustomDatabaseProvisioner())
+    
+    // Custom logging
+    .AddLogProvider(new MyCustomLogProvider());
+```
+
+### Available Extension Points
+
+#### Script Discovery Extensions
+- **`AddScriptProvider(IScriptProvider)`** - Add custom script discovery logic
+- **`AddDowngradeResolver(IDowngradeResolver)`** - Add custom downgrade script resolution
+
+#### Execution Extensions  
+- **`AddConnectionManager(IConnectionManager)`** - Custom database connection management
+- **`AddScriptExecutor(IScriptExecutor)`** - Custom script execution logic
+- **`AddMigrationJournal(IMigrationJournal)`** - Custom migration tracking
+
+#### Database Management Extensions
+- **`AddDatabaseProvisioner(IDatabaseProvisioner)`** - Custom database creation logic
+
+#### Logging Extensions
+- **`AddLogProvider(ILogProvider)`** - Custom logging implementation
+
+### Example Custom Implementations
+
+#### Custom Script Provider
+```csharp
+public class ApiScriptProvider : IScriptProvider
+{
+    private readonly string _apiEndpoint;
+    
+    public ApiScriptProvider(string apiEndpoint)
+    {
+        _apiEndpoint = apiEndpoint;
+    }
+    
+    public async Task<IEnumerable<IScript>> GetScriptsAsync(CancellationToken cancellationToken = default)
+    {
+        // Fetch scripts from remote API
+        var httpClient = new HttpClient();
+        var response = await httpClient.GetStringAsync(_apiEndpoint);
+        return ParseScriptsFromJson(response);
+    }
+}
+
+// Usage
+config.AddScriptProvider(new ApiScriptProvider("https://api.example.com/migrations"));
+```
+
+#### Custom Log Provider
+```csharp
+public class StructuredLogProvider : ILogProvider
+{
+    private readonly ILogger _logger;
+    
+    public StructuredLogProvider(ILogger logger)
+    {
+        _logger = logger;
+    }
+    
+    public void WriteInformation(string format, params object[] args)
+    {
+        _logger.LogInformation(format, args);
+    }
+    
+    public void WriteError(string format, params object[] args)
+    {
+        _logger.LogError(format, args);
+    }
+    
+    public void WriteWarning(string format, params object[] args)
+    {
+        _logger.LogWarning(format, args);
+    }
+}
+
+// Usage
+config.AddLogProvider(new StructuredLogProvider(myLogger));
+```
+
+#### Custom Migration Journal
+```csharp
+public class RedisJournal : IMigrationJournal
+{
+    private readonly IDatabase _redis;
+    
+    public RedisJournal(IDatabase redis)
+    {
+        _redis = redis;
+    }
+    
+    public async Task<bool> HasBeenExecutedAsync(IMigration migration, CancellationToken cancellationToken = default)
+    {
+        return await _redis.KeyExistsAsync($"migration:{migration.Name}");
+    }
+    
+    public async Task StoreExecutedMigrationAsync(IMigration migration, MigrationResult result, CancellationToken cancellationToken = default)
+    {
+        await _redis.StringSetAsync($"migration:{migration.Name}", JsonSerializer.Serialize(result));
+    }
+    
+    // ... implement other methods
+}
+
+// Usage
+config.AddMigrationJournal(new RedisJournal(redisDatabase));
 ```
 
 ## Creating Database Providers
@@ -309,21 +453,21 @@ public static class MyDatabaseExtensions
     public static DbReactorConfiguration UseMyDatabase(this DbReactorConfiguration config, string connectionString)
     {
         return config
-            .UseConnectionManager(new MyConnectionManager(connectionString))
-            .UseScriptExecutor(new MyScriptExecutor())
-            .UseMigrationJournal(new MyMigrationJournal())
-            .UseDatabaseProvisioner(new MyDatabaseProvisioner());
+            .AddConnectionManager(new MyConnectionManager(connectionString))
+            .AddScriptExecutor(new MyScriptExecutor())
+            .AddMigrationJournal(new MyMigrationJournal())
+            .AddDatabaseProvisioner(new MyDatabaseProvisioner());
     }
     
     // Optional: Individual component configuration
     public static DbReactorConfiguration UseMyDatabaseConnection(this DbReactorConfiguration config, string connectionString)
     {
-        return config.UseConnectionManager(new MyConnectionManager(connectionString));
+        return config.AddConnectionManager(new MyConnectionManager(connectionString));
     }
     
     public static DbReactorConfiguration UseMyDatabaseJournal(this DbReactorConfiguration config, string schema, string table)
     {
-        return config.UseMigrationJournal(new MyMigrationJournal(schema, table));
+        return config.AddMigrationJournal(new MyMigrationJournal(schema, table));
     }
 }
 ```
