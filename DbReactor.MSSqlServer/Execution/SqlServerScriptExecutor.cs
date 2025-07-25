@@ -86,14 +86,59 @@ namespace DbReactor.MSSqlServer.Execution
 
             await connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
             {
-                foreach (string batch in batches)
+                var sqlConnection = (SqlConnection)connection;
+                SqlTransaction transaction = null;
+                bool hasManualTransaction = ContainsManualTransactionControl(scriptContent);
+
+                try
                 {
-                    if (string.IsNullOrWhiteSpace(batch)) continue;
+                    // Only start an automatic transaction if the script doesn't manage its own
+                    if (!hasManualTransaction)
+                    {
+                        transaction = sqlConnection.BeginTransaction();
+                    }
 
-                    using var command = new SqlCommand(batch.Trim(), (SqlConnection)connection);
-                    command.CommandTimeout = (int)_commandTimeout.TotalSeconds;
+                    foreach (string batch in batches)
+                    {
+                        if (string.IsNullOrWhiteSpace(batch)) continue;
 
-                    await ExecuteBatchAsync(command, cancellationToken);
+                        using var command = new SqlCommand(batch.Trim(), sqlConnection);
+                        command.CommandTimeout = (int)_commandTimeout.TotalSeconds;
+                        
+                        // Only set transaction if we're managing it automatically
+                        if (transaction != null)
+                        {
+                            command.Transaction = transaction;
+                        }
+
+                        await ExecuteBatchAsync(command, cancellationToken);
+                    }
+
+                    // Only commit if we started the transaction
+                    if (transaction != null)
+                    {
+                        transaction.Commit();
+                    }
+                }
+                catch
+                {
+                    // Only rollback if we started the transaction
+                    if (transaction != null)
+                    {
+                        try
+                        {
+                            transaction.Rollback();
+                        }
+                        catch
+                        {
+                            // Ignore rollback errors - connection will be disposed anyway
+                        }
+                    }
+                    throw;
+                }
+                finally
+                {
+                    transaction?.Dispose();
                 }
             }, cancellationToken);
         }
@@ -132,6 +177,18 @@ namespace DbReactor.MSSqlServer.Execution
         {
             // Split on GO statements (case insensitive, must be on its own line)
             return Regex.Split(script, @"^\s*GO\s*(\d+)?\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase);
+        }
+
+        private bool ContainsManualTransactionControl(string script)
+        {
+            // Check if the script contains explicit transaction control statements
+            var upperScript = script.ToUpperInvariant();
+            
+            bool hasBeginTransaction = Regex.IsMatch(upperScript, @"\bBEGIN\s+TRAN(SACTION)?\b", RegexOptions.IgnoreCase);
+            bool hasCommitTransaction = Regex.IsMatch(upperScript, @"\bCOMMIT(\s+TRAN(SACTION)?)?\b", RegexOptions.IgnoreCase);
+            bool hasRollbackTransaction = Regex.IsMatch(upperScript, @"\bROLLBACK(\s+TRAN(SACTION)?)?\b", RegexOptions.IgnoreCase);
+            
+            return hasBeginTransaction || hasCommitTransaction || hasRollbackTransaction;
         }
     }
 }
