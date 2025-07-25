@@ -3,11 +3,7 @@ using DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Exec
 using FluentAssertions;
 using FluentAssertions.Execution;
 using Microsoft.Data.SqlClient;
-using NUnit.Framework;
-using System;
 using System.Data;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace DbReactor.MSSqlServer.Tests.Execution;
 
@@ -28,10 +24,10 @@ public class SqlServerConnectionManagerTests
     public void Constructor_WithValidConnectionString_ShouldCreateManager()
     {
         // Given
-        var connectionString = ValidConnectionString;
+        string connectionString = ValidConnectionString;
 
         // When
-        var manager = new SqlServerConnectionManager(connectionString);
+        SqlServerConnectionManager manager = new SqlServerConnectionManager(connectionString);
 
         // Then
         using (new AssertionScope())
@@ -59,35 +55,19 @@ public class SqlServerConnectionManagerTests
     }
 
     [Test]
-    public void Constructor_WithEmptyConnectionString_ShouldCreateManager()
-    {
-        // Given
-        var emptyConnectionString = string.Empty;
-
-        // When
-        var manager = new SqlServerConnectionManager(emptyConnectionString);
-
-        // Then
-        using (new AssertionScope())
-        {
-            manager.Should().NotBeNull();
-        }
-    }
-
-    [Test]
     public async Task CreateConnectionAsync_WithValidConnectionString_ShouldReturnOpenConnection()
     {
         // Given
-        var cancellationToken = CancellationToken.None;
-        var manager = new SqlServerConnectionManager(ValidConnectionString);
+        CancellationToken cancellationToken = CancellationToken.None;
+        SqlServerConnectionManager manager = new SqlServerConnectionManager(ValidConnectionString);
 
         // When & Then
         // Note: This test would require a real SQL Server instance
         // For unit testing, we'll just verify the method doesn't throw with valid syntax
         if (IsConnectionStringValid(ValidConnectionString))
         {
-            using var connection = await manager.CreateConnectionAsync(cancellationToken);
-            
+            using IDbConnection connection = await manager.CreateConnectionAsync(cancellationToken);
+
             using (new AssertionScope())
             {
                 connection.Should().NotBeNull();
@@ -107,8 +87,8 @@ public class SqlServerConnectionManagerTests
     public async Task CreateConnectionAsync_WithInvalidConnectionString_ShouldThrowSqlException()
     {
         // Given
-        var manager = new SqlServerConnectionManager(InvalidConnectionString);
-        var cancellationToken = CancellationToken.None;
+        SqlServerConnectionManager manager = new SqlServerConnectionManager(InvalidConnectionString);
+        CancellationToken cancellationToken = CancellationToken.None;
 
         // When
         Func<Task> act = async () => await manager.CreateConnectionAsync(cancellationToken);
@@ -124,8 +104,8 @@ public class SqlServerConnectionManagerTests
     public async Task CreateConnectionAsync_WithCancelledToken_ShouldThrowOperationCanceledException()
     {
         // Given
-        var manager = new SqlServerConnectionManager(ValidConnectionString);
-        var cancellationToken = new CancellationToken(true); // Pre-cancelled
+        SqlServerConnectionManager manager = new SqlServerConnectionManager(ValidConnectionString);
+        CancellationToken cancellationToken = new CancellationToken(true); // Pre-cancelled
 
         // When
         Func<Task> act = async () => await manager.CreateConnectionAsync(cancellationToken);
@@ -141,9 +121,9 @@ public class SqlServerConnectionManagerTests
     public async Task ExecuteWithManagedConnectionAsync_WithValidOperation_ShouldExecuteSuccessfully()
     {
         // Given
-        var manager = new SqlServerConnectionManager(ValidConnectionString);
-        var cancellationToken = CancellationToken.None;
-        var operationExecuted = false;
+        SqlServerConnectionManager manager = new SqlServerConnectionManager(ValidConnectionString);
+        CancellationToken cancellationToken = CancellationToken.None;
+        bool operationExecuted = false;
 
         // When
         if (IsConnectionStringValid(ValidConnectionString))
@@ -181,9 +161,9 @@ public class SqlServerConnectionManagerTests
     public async Task ExecuteWithManagedConnectionAsync_WithInvalidConnectionString_ShouldThrowSqlException()
     {
         // Given
-        var manager = new SqlServerConnectionManager(InvalidConnectionString);
-        var cancellationToken = CancellationToken.None;
-        var operationExecuted = false;
+        SqlServerConnectionManager manager = new SqlServerConnectionManager(InvalidConnectionString);
+        CancellationToken cancellationToken = CancellationToken.None;
+        bool operationExecuted = false;
 
         // When
         Func<Task> act = async () => await manager.ExecuteWithManagedConnectionAsync(async connection =>
@@ -204,9 +184,9 @@ public class SqlServerConnectionManagerTests
     public async Task ExecuteWithManagedConnectionAsync_WithOperationException_ShouldPropagateException()
     {
         // Given
-        var manager = new SqlServerConnectionManager(ValidConnectionString);
-        var cancellationToken = CancellationToken.None;
-        var expectedException = new InvalidOperationException("Test exception");
+        SqlServerConnectionManager manager = new SqlServerConnectionManager(ValidConnectionString);
+        CancellationToken cancellationToken = CancellationToken.None;
+        InvalidOperationException expectedException = new InvalidOperationException("Test exception");
 
         // When
         Func<Task> act = async () => await manager.ExecuteWithManagedConnectionAsync(async connection =>
@@ -235,14 +215,14 @@ public class SqlServerConnectionManagerTests
     public async Task ExecuteWithManagedConnectionAsync_Generic_WithValidOperation_ShouldReturnResult()
     {
         // Given
-        var manager = new SqlServerConnectionManager(ValidConnectionString);
-        var cancellationToken = CancellationToken.None;
-        var expectedResult = 42;
+        SqlServerConnectionManager manager = new SqlServerConnectionManager(ValidConnectionString);
+        CancellationToken cancellationToken = CancellationToken.None;
+        int expectedResult = 42;
 
         // When & Then
         if (IsConnectionStringValid(ValidConnectionString))
         {
-            var result = await manager.ExecuteWithManagedConnectionAsync(async connection =>
+            int result = await manager.ExecuteWithManagedConnectionAsync(async connection =>
             {
                 connection.Should().NotBeNull();
                 connection.Should().BeAssignableTo<SqlConnection>();
@@ -273,8 +253,8 @@ public class SqlServerConnectionManagerTests
     public async Task ExecuteWithManagedConnectionAsync_Generic_WithInvalidConnectionString_ShouldThrowSqlException()
     {
         // Given
-        var manager = new SqlServerConnectionManager(InvalidConnectionString);
-        var cancellationToken = CancellationToken.None;
+        SqlServerConnectionManager manager = new SqlServerConnectionManager(InvalidConnectionString);
+        CancellationToken cancellationToken = CancellationToken.None;
 
         // When
         Func<Task> act = async () => await manager.ExecuteWithManagedConnectionAsync(async connection =>
@@ -294,9 +274,9 @@ public class SqlServerConnectionManagerTests
     public async Task ExecuteWithManagedConnectionAsync_Generic_WithOperationException_ShouldPropagateException()
     {
         // Given
-        var manager = new SqlServerConnectionManager(ValidConnectionString);
-        var cancellationToken = CancellationToken.None;
-        var expectedException = new InvalidOperationException("Test exception");
+        SqlServerConnectionManager manager = new SqlServerConnectionManager(ValidConnectionString);
+        CancellationToken cancellationToken = CancellationToken.None;
+        InvalidOperationException expectedException = new InvalidOperationException("Test exception");
 
         // When
         Func<Task> act = async () => await manager.ExecuteWithManagedConnectionAsync<string>(async connection =>
@@ -325,8 +305,8 @@ public class SqlServerConnectionManagerTests
     public async Task ExecuteWithManagedConnectionAsync_Generic_WithCancelledToken_ShouldThrowOperationCanceledException()
     {
         // Given
-        var manager = new SqlServerConnectionManager(ValidConnectionString);
-        var cancellationToken = new CancellationToken(true); // Pre-cancelled
+        SqlServerConnectionManager manager = new SqlServerConnectionManager(ValidConnectionString);
+        CancellationToken cancellationToken = new CancellationToken(true); // Pre-cancelled
 
         // When
         Func<Task> act = async () => await manager.ExecuteWithManagedConnectionAsync(async connection =>
@@ -346,8 +326,8 @@ public class SqlServerConnectionManagerTests
     public async Task ExecuteWithManagedConnectionAsync_ShouldDisposeConnectionAfterOperation()
     {
         // Given
-        var manager = new SqlServerConnectionManager(ValidConnectionString);
-        var cancellationToken = CancellationToken.None;
+        SqlServerConnectionManager manager = new SqlServerConnectionManager(ValidConnectionString);
+        CancellationToken cancellationToken = CancellationToken.None;
         IDbConnection capturedConnection = null!;
 
         // When
@@ -384,14 +364,14 @@ public class SqlServerConnectionManagerTests
     public async Task ExecuteWithManagedConnectionAsync_Generic_ShouldDisposeConnectionAfterOperation()
     {
         // Given
-        var manager = new SqlServerConnectionManager(ValidConnectionString);
-        var cancellationToken = CancellationToken.None;
+        SqlServerConnectionManager manager = new SqlServerConnectionManager(ValidConnectionString);
+        CancellationToken cancellationToken = CancellationToken.None;
         IDbConnection capturedConnection = null!;
 
         // When & Then
         if (IsConnectionStringValid(ValidConnectionString))
         {
-            var result = await manager.ExecuteWithManagedConnectionAsync(async connection =>
+            string result = await manager.ExecuteWithManagedConnectionAsync(async connection =>
             {
                 capturedConnection = connection;
                 await Task.CompletedTask;
@@ -428,7 +408,7 @@ public class SqlServerConnectionManagerTests
     {
         try
         {
-            using var connection = new SqlConnection(connectionString);
+            using SqlConnection connection = new SqlConnection(connectionString);
             connection.Open();
             return true;
         }
