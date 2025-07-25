@@ -3,6 +3,23 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     
+    <!-- Package Information -->
+    <PackageId>DbReactor.Core</PackageId>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Authors>Robert Convery</Authors>
+    <Company>The Critical Mass Software</Company>
+    <Product>DbReactor</Product>
+    <Description>Core migration framework and abstractions for DbReactor .NET database migration system. Provides database-agnostic interfaces, configuration management, and migration orchestration.</Description>
+    <PackageTags>database;migration;schema;versioning;sql;upgrade;downgrade</PackageTags>
+    <PackageProjectUrl>https://github.com/rmconvery/DbReactor</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/rmconvery/DbReactor</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReleaseNotes>Initial release of DbReactor.Core migration framework</PackageReleaseNotes>
+    
     <!-- Documentation Generation -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>
