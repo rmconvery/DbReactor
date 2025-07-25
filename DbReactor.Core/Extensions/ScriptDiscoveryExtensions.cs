@@ -1,6 +1,7 @@
 using DbReactor.Core.Configuration;
 using DbReactor.Core.Discovery;
 using DbReactor.Core.Utilities;
+using System;
 using System.IO;
 using System.Reflection;
 
@@ -11,6 +12,20 @@ namespace DbReactor.Core.Extensions
     /// </summary>
     public static class ScriptDiscoveryExtensions
     {
+        /// <summary>
+        /// Adds a script provider to the configuration
+        /// </summary>
+        /// <param name="config">The configuration to extend</param>
+        /// <param name="provider">Script provider to add</param>
+        /// <returns>The configuration for method chaining</returns>
+        public static DbReactorConfiguration AddScriptProvider(this DbReactorConfiguration config, IScriptProvider provider)
+        {
+            if (provider == null) throw new ArgumentNullException(nameof(provider));
+
+            config.ScriptProviders.Add(provider);
+            return config;
+        }
+
         #region Embedded SQL Scripts
 
         /// <summary>
@@ -89,7 +104,7 @@ namespace DbReactor.Core.Extensions
         /// <returns>The configuration for method chaining</returns>
         public static DbReactorConfiguration UseDowngradesFromFolder(this DbReactorConfiguration config, Assembly assembly, string baseNamespace, string downgradeFolder)
         {
-            var options = new DowngradeMatchingOptions
+            DowngradeMatchingOptions options = new DowngradeMatchingOptions
             {
                 Mode = DowngradeMatchingMode.SameName,
                 UpgradeSuffix = ".sql",
@@ -112,7 +127,7 @@ namespace DbReactor.Core.Extensions
         /// <returns>The configuration for method chaining</returns>
         public static DbReactorConfiguration UseDowngradesWithSuffix(this DbReactorConfiguration config, Assembly assembly, string baseNamespace, string downgradeFolder, string suffix = "_downgrade")
         {
-            var options = new DowngradeMatchingOptions
+            DowngradeMatchingOptions options = new DowngradeMatchingOptions
             {
                 Mode = DowngradeMatchingMode.Suffix,
                 Pattern = suffix,
@@ -136,7 +151,7 @@ namespace DbReactor.Core.Extensions
         /// <returns>The configuration for method chaining</returns>
         public static DbReactorConfiguration UseDowngradesWithPrefix(this DbReactorConfiguration config, Assembly assembly, string baseNamespace, string downgradeFolder, string prefix = "downgrade_")
         {
-            var options = new DowngradeMatchingOptions
+            DowngradeMatchingOptions options = new DowngradeMatchingOptions
             {
                 Mode = DowngradeMatchingMode.Prefix,
                 Pattern = prefix,
@@ -202,7 +217,7 @@ namespace DbReactor.Core.Extensions
         /// <returns>The configuration for method chaining</returns>
         public static DbReactorConfiguration UseFileSystemDowngrades(this DbReactorConfiguration config, string downgradeDirectory, string fileExtension = ".sql", DowngradeMatchingMode matchingMode = DowngradeMatchingMode.SameName, string pattern = null)
         {
-            var options = new DowngradeMatchingOptions
+            DowngradeMatchingOptions options = new DowngradeMatchingOptions
             {
                 Mode = matchingMode,
                 Pattern = pattern,
@@ -227,8 +242,8 @@ namespace DbReactor.Core.Extensions
         /// <returns>The configuration for method chaining</returns>
         public static DbReactorConfiguration UseFileSystemFolderStructure(this DbReactorConfiguration config, string baseDirectory, string upgradeFolder = "upgrades", string downgradeFolder = "downgrades", string fileExtension = ".sql")
         {
-            var upgradePath = Path.Combine(baseDirectory, upgradeFolder);
-            var downgradePath = Path.Combine(baseDirectory, downgradeFolder);
+            string upgradePath = Path.Combine(baseDirectory, upgradeFolder);
+            string downgradePath = Path.Combine(baseDirectory, downgradeFolder);
 
             return config
                 .UseFileSystemScripts(upgradePath, fileExtension)

@@ -111,19 +111,7 @@ public class VariableManagementService : IVariableManagementService
 
         while (true)
         {
-            DisplayCurrentVariables(variables);
-
-            string choice = AnsiConsole.Prompt(
-                new SelectionPrompt<string>()
-                    .Title("Variable Management")
-                    .AddChoices(new[] {
-                        "Add Variable",
-                        "Edit Variable",
-                        "Remove Variable",
-                        "Clear All Variables",
-                        "Save and Continue",
-                        "Cancel"
-                    }));
+            string choice = DisplayCurrentVariablesWithMenu(variables);
 
             switch (choice)
             {
@@ -179,18 +167,26 @@ public class VariableManagementService : IVariableManagementService
         return variables.Count > 0;
     }
 
-    private void DisplayCurrentVariables(Dictionary<string, string> variables)
+    private string DisplayCurrentVariablesWithMenu(Dictionary<string, string> variables)
     {
         AnsiConsole.Clear();
 
-        Table table = new Table()
-            .Title("Current Variables")
-            .AddColumn("Key")
-            .AddColumn("Value");
+        // Create the layout with variables on the left (60%) and menu on the right (40%)
+        var layout = new Layout("Root")
+            .SplitColumns(
+                new Layout("Variables") { Size = 60 },
+                new Layout("Menu") { Size = 40 });
+
+        // Create variables table for the left side
+        var variablesTable = new Table()
+            .Title("[bold blue]Current Variables[/]")
+            .Border(TableBorder.Rounded)
+            .AddColumn(new TableColumn("[bold]Key[/]") { Width = 20 })
+            .AddColumn(new TableColumn("[bold]Value[/]") { Width = 50, NoWrap = false });
 
         if (!variables.Any())
         {
-            table.AddRow("[dim]No variables defined[/]", "[dim]--[/]");
+            variablesTable.AddRow("[dim]No variables defined[/]", "[dim]--[/]");
         }
         else
         {
@@ -199,12 +195,86 @@ public class VariableManagementService : IVariableManagementService
                 // Mask sensitive values based on session tracking
                 bool shouldMask = _sessionSensitivityMap.GetValueOrDefault(kvp.Key, false);
                 string displayValue = shouldMask ? MaskSensitiveValue(kvp.Value) : kvp.Value;
-                table.AddRow(kvp.Key, displayValue);
+                
+                // Wrap long values to multiple lines
+                string wrappedValue = WrapText(displayValue, 50);
+                
+                variablesTable.AddRow(kvp.Key, wrappedValue);
             }
         }
 
-        AnsiConsole.Write(table);
+        // Create menu panel for the right side
+        var menuPanel = new Panel(
+            new Markup(@"[bold yellow]Variable Management[/]
+
+[green]1.[/] Add Variable
+[green]2.[/] Edit Variable  
+[green]3.[/] Remove Variable
+[green]4.[/] Clear All Variables
+[green]5.[/] Save and Continue
+[green]6.[/] Cancel
+
+Select an option to manage your variables."))
+        {
+            Border = BoxBorder.Rounded,
+            BorderStyle = new Style(Color.Yellow),
+            Header = new PanelHeader("[bold]Menu[/]")
+        };
+
+        // Set the content for each layout
+        layout["Variables"].Update(variablesTable);
+        layout["Menu"].Update(menuPanel);
+
+        // Display the layout
+        AnsiConsole.Write(layout);
         AnsiConsole.WriteLine();
+
+        // Show the selection prompt
+        return AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[bold yellow]Choose an action:[/]")
+                .AddChoices(new[] {
+                    "Add Variable",
+                    "Edit Variable",
+                    "Remove Variable",
+                    "Clear All Variables",
+                    "Save and Continue",
+                    "Cancel"
+                }));
+    }
+
+    private string WrapText(string text, int maxWidth)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxWidth)
+            return text;
+
+        var words = text.Split(' ');
+        var lines = new List<string>();
+        var currentLine = string.Empty;
+
+        foreach (var word in words)
+        {
+            if (string.IsNullOrEmpty(currentLine))
+            {
+                currentLine = word;
+            }
+            else if (currentLine.Length + word.Length + 1 <= maxWidth)
+            {
+                currentLine += " " + word;
+            }
+            else
+            {
+                lines.Add(currentLine);
+                currentLine = word;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(currentLine))
+        {
+            lines.Add(currentLine);
+        }
+
+        return string.Join("\n", lines);
     }
 
     private async Task AddVariableInteractively(Dictionary<string, string> variables)

@@ -175,55 +175,8 @@ public class CommandParameterCollector : ICommandParameterCollector
 
     private async Task<string[]> CollectVariablesParametersAsync()
     {
-        var subcommand = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[yellow]Variables command:[/]")
-                .AddChoices(new[] { "list", "manage", "set", "remove", "clear" })
-                .UseConverter(cmd => cmd switch
-                {
-                    "list" => "List all variables",
-                    "manage" => "Interactively manage variables",
-                    "set" => "Set a variable value",
-                    "remove" => "Remove a variable",
-                    "clear" => "Clear all variables",
-                    _ => cmd
-                }));
-
-        var args = new List<string> { subcommand };
-
-        switch (subcommand)
-        {
-            case "list":
-                if (AnsiConsole.Confirm("[yellow]Show variable values?[/]", false))
-                {
-                    args.Add("--show-values");
-                }
-                break;
-
-            case "set":
-                var key = AnsiConsole.Ask<string>("Enter variable [green]key[/]:");
-                var value = AnsiConsole.Ask<string>("Enter variable [green]value[/]:");
-                args.AddRange(new[] { key, value });
-                break;
-
-            case "remove":
-                var keyToRemove = AnsiConsole.Ask<string>("Enter variable [red]key to remove[/]:");
-                args.Add(keyToRemove);
-                break;
-
-            case "clear":
-                if (AnsiConsole.Confirm("[red]Are you sure you want to clear all variables?[/]", false))
-                {
-                    args.Add("--force");
-                }
-                break;
-
-            case "manage":
-                // No additional parameters needed for interactive management
-                break;
-        }
-
-        return args.ToArray();
+        // Always go directly to the interactive management interface
+        return new[] { "manage" };
     }
 
 }

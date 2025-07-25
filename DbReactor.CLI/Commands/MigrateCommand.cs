@@ -67,7 +67,7 @@ public class MigrateCommand : BaseCommand
 
             CommandResult result = await ExecuteWithErrorHandling(async () =>
             {
-                CliOptions options = BuildCliOptions(connectionString, config, upgradesPath, downgradesPath, verbose, dryRun, force, variables, timeout, ensureDatabase, ensureDirectories);
+                CliOptions options = await BuildCliOptionsAsync(connectionString, config, upgradesPath, downgradesPath, verbose, dryRun, force, variables, timeout, ensureDatabase, ensureDirectories, context.GetCancellationToken());
                 return await ExecuteMigrationAsync(options, context.GetCancellationToken());
             }, context.GetCancellationToken());
 

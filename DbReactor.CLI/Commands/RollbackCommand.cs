@@ -65,7 +65,7 @@ public class RollbackCommand : BaseCommand
 
             var result = await ExecuteWithErrorHandling(async () =>
             {
-                var options = BuildCliOptions(connectionString, config, upgradesPath, downgradesPath, verbose, false, force, variables, timeout, false, false);
+                var options = await BuildCliOptionsAsync(connectionString, config, upgradesPath, downgradesPath, verbose, false, force, variables, timeout, false, false, context.GetCancellationToken());
                 var mode = DetermineRollbackMode(rollbackLast, rollbackAll);
                 return await ExecuteRollbackAsync(options, mode, context.GetCancellationToken());
             }, context.GetCancellationToken());

@@ -51,7 +51,7 @@ public class ValidateCommand : BaseCommand
         {
             AnsiConsole.MarkupLine("[blue]Validating configuration...[/]");
 
-            var options = BuildCliOptions(connectionString, null, upgradesPath, downgradesPath, verbose, false, false, null, 30, false, false);
+            var options = await BuildCliOptionsAsync(connectionString, null, upgradesPath, downgradesPath, verbose, false, false, null, 30, false, false);
             var validationResults = await _validator.ValidateAsync(options);
 
             DisplayValidationResults(validationResults, verbose);

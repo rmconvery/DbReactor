@@ -244,17 +244,15 @@ public class InteractiveConfigurationCollector : IInteractiveConfigurationCollec
     private async Task CollectVariables(CliOptions options)
     {
         AnsiConsole.WriteLine();
-        
-        if (AnsiConsole.Confirm("[yellow]Configure variables for script substitution?[/]", false))
-        {
-            AnsiConsole.MarkupLine("[dim]Variables can be used in SQL scripts with ${VariableName} syntax[/]");
-            AnsiConsole.MarkupLine("[dim]Example: CREATE TABLE ${Environment}_Users[/]");
-            AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[yellow]Variable Configuration[/]");
+        AnsiConsole.MarkupLine("[dim]Variables can be used in SQL scripts with ${VariableName} syntax[/]");
+        AnsiConsole.MarkupLine("[dim]Example: CREATE TABLE ${Environment}_Users[/]");
+        AnsiConsole.WriteLine();
 
-            var variables = await _variableManagementService.ManageVariablesInteractivelyAsync(
-                options.Variables, CancellationToken.None);
-            
-            options.Variables = variables;
-        }
+        // Always go to variable management - make it the default
+        var variables = await _variableManagementService.ManageVariablesInteractivelyAsync(
+            options.Variables, CancellationToken.None);
+        
+        options.Variables = variables;
     }
 }

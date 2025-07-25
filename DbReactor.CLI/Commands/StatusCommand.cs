@@ -52,7 +52,7 @@ public class StatusCommand : BaseCommand
 
             var result = await ExecuteWithErrorHandling(async () =>
             {
-                var options = BuildCliOptions(connectionString, config, upgradesPath, downgradesPath, verbose, false, false, variables, timeout, false, false);
+                var options = await BuildCliOptionsAsync(connectionString, config, upgradesPath, downgradesPath, verbose, false, false, variables, timeout, false, false, context.GetCancellationToken());
                 return await ShowMigrationStatusAsync(options, context.GetCancellationToken());
             }, context.GetCancellationToken());
 

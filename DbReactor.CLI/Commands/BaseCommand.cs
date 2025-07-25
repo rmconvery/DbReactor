@@ -78,7 +78,7 @@ public abstract class BaseCommand
         }
     }
 
-    protected CliOptions BuildCliOptions(
+    protected async Task<CliOptions> BuildCliOptionsAsync(
         string? connectionString,
         string? config,
         string? upgradesPath,
@@ -89,26 +89,41 @@ public abstract class BaseCommand
         string[]? variables,
         int timeout,
         bool ensureDatabase,
-        bool ensureDirectories)
+        bool ensureDirectories,
+        CancellationToken cancellationToken = default)
     {
-        var options = new CliOptions
-        {
-            ConnectionString = connectionString,
-            ConfigFile = config,
-            UpgradesPath = upgradesPath,
-            DowngradesPath = downgradesPath,
-            Verbose = verbose,
-            DryRun = dryRun,
-            Force = force,
-            TimeoutSeconds = timeout,
-            EnsureDatabase = ensureDatabase,
-            EnsureDirectories = ensureDirectories,
-            LogLevel = verbose ? LogLevel.Debug : LogLevel.Information
-        };
+        // First load configuration file to get stored variables
+        var options = await ConfigurationService.LoadConfigurationAsync(config, cancellationToken);
 
+        // Then override with command line arguments
+        if (!string.IsNullOrEmpty(connectionString))
+            options.ConnectionString = connectionString;
+        
+        if (!string.IsNullOrEmpty(config))
+            options.ConfigFile = config;
+            
+        if (!string.IsNullOrEmpty(upgradesPath))
+            options.UpgradesPath = upgradesPath;
+            
+        if (!string.IsNullOrEmpty(downgradesPath))
+            options.DowngradesPath = downgradesPath;
+
+        options.Verbose = verbose;
+        options.DryRun = dryRun;
+        options.Force = force;
+        options.TimeoutSeconds = timeout;
+        options.EnsureDatabase = ensureDatabase;
+        options.EnsureDirectories = ensureDirectories;
+        options.LogLevel = verbose ? LogLevel.Debug : LogLevel.Information;
+
+        // Merge command line variables with config file variables
         if (variables != null)
         {
-            options.Variables = ParseVariables(variables);
+            var cmdLineVariables = ParseVariables(variables);
+            foreach (var kvp in cmdLineVariables)
+            {
+                options.Variables[kvp.Key] = kvp.Value;
+            }
         }
 
         return options;
