@@ -217,6 +217,75 @@ namespace DbReactor.Core.Engine
             return result;
         }
 
+        public async Task<DbReactorResult> ApplyLastDowngradeAsync(CancellationToken cancellationToken = default)
+        {
+            DbReactorResult result = new DbReactorResult();
+
+            try
+            {
+                // Ensure database exists if provisioner is configured
+                if (_configuration.CreateDatabaseIfNotExists && _configuration.DatabaseProvisioner != null)
+                {
+                    _configuration.LogProvider?.WriteInformation("Ensuring database exists...");
+                    await _configuration.DatabaseProvisioner.EnsureDatabaseExistsAsync(_configuration.DatabaseCreationTemplate, cancellationToken);
+                }
+
+                // Ensure journal table exists
+                await _configuration.MigrationJournal.EnsureTableExistsAsync(_configuration.ConnectionManager, cancellationToken);
+
+                // Check if downgrades are enabled
+                if (!_configuration.AllowDowngrades)
+                {
+                    _configuration.LogProvider?.WriteInformation("Downgrade scripts are disabled in configuration. No changes will be reverted.");
+                    result.Successful = true;
+                    return result;
+                }
+
+                _configuration.LogProvider?.WriteInformation("Starting last migration downgrade...");
+
+                // Get the last executed migration
+                var executedMigrations = await _configuration.MigrationJournal.GetExecutedMigrationsAsync(cancellationToken);
+                var lastMigration = executedMigrations.OrderByDescending(m => m.MigratedOn).FirstOrDefault();
+
+                if (lastMigration == null)
+                {
+                    _configuration.LogProvider?.WriteInformation("No migration found for downgrade.");
+                    result.Successful = true;
+                    return result;
+                }
+
+                _configuration.LogProvider?.WriteInformation($"Found last migration to downgrade: {lastMigration.MigrationName}.");
+
+                // Execute downgrade for the last migration
+                MigrationResult scriptResult = await _executionService.ExecuteDowngradeAsync(lastMigration, cancellationToken);
+                result.Scripts.Add(scriptResult);
+
+                if (!scriptResult.Successful)
+                {
+                    result.Successful = false;
+                    result.Error = scriptResult.Error;
+                    result.ErrorMessage = $"Failed to revert script: {lastMigration.MigrationName}. {scriptResult.ErrorMessage}";
+                    _configuration.LogProvider?.WriteError(result.ErrorMessage);
+                }
+                else
+                {
+                    _configuration.LogProvider?.WriteInformation($"Successfully reverted script: {lastMigration.MigrationName}");
+                    result.Successful = true;
+                }
+
+                _configuration.LogProvider?.WriteInformation($"Last migration downgrade completed. Success: {result.Successful}");
+            }
+            catch (Exception ex)
+            {
+                result.Successful = false;
+                result.Error = ex;
+                result.ErrorMessage = ex.Message;
+                _configuration.LogProvider?.WriteError($"Last migration downgrade failed: {ex.Message}");
+            }
+
+            return result;
+        }
+
         public async Task<DbReactorPreviewResult> RunPreviewAsync(CancellationToken cancellationToken = default)
         {
             _configuration.LogProvider?.WriteInformation("Starting Preview for migrations...");

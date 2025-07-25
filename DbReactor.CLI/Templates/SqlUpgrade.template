@@ -1,0 +1,11 @@
+-- Migration: {Name}
+-- Created: {CreatedAt}
+-- Description: Add description here
+
+-- Add your upgrade SQL here
+-- Example:
+-- CREATE TABLE Users (
+--     Id INT IDENTITY(1,1) PRIMARY KEY,
+--     Name NVARCHAR(100) NOT NULL,
+--     CreatedAt DATETIME2 DEFAULT GETDATE()
+-- );

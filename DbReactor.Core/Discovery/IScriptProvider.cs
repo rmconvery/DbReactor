@@ -1,5 +1,7 @@
 ﻿using DbReactor.Core.Abstractions;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DbReactor.Core.Discovery
 {
@@ -11,7 +13,8 @@ namespace DbReactor.Core.Discovery
         /// <summary>
         /// Gets upgrade scripts only
         /// </summary>
+        /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>Collection of upgrade scripts</returns>
-        IEnumerable<IScript> GetScripts();
+        Task<IEnumerable<IScript>> GetScriptsAsync(CancellationToken cancellationToken = default);
     }
 }

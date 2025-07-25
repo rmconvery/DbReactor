@@ -5,6 +5,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DbReactor.Core.Discovery
 {
@@ -28,7 +30,7 @@ namespace DbReactor.Core.Discovery
             _targetNamespace = @namespace;
         }
 
-        public IEnumerable<IScript> GetScripts()
+        public Task<IEnumerable<IScript>> GetScriptsAsync(CancellationToken cancellationToken = default)
         {
             var codeScriptTypes = _assembly.GetTypes()
                 .Where(t => typeof(ICodeScript).IsAssignableFrom(t) 
@@ -57,7 +59,8 @@ namespace DbReactor.Core.Discovery
                 }
             }
 
-            return scripts.OrderBy(s => s.Name);
+            var orderedScripts = scripts.OrderBy(s => s.Name);
+            return Task.FromResult<IEnumerable<IScript>>(orderedScripts);
         }
     }
 

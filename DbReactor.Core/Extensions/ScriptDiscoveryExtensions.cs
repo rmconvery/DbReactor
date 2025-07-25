@@ -1,6 +1,8 @@
 using DbReactor.Core.Configuration;
 using DbReactor.Core.Discovery;
 using DbReactor.Core.Utilities;
+using System;
+using System.IO;
 using System.Reflection;
 
 namespace DbReactor.Core.Extensions
@@ -10,6 +12,37 @@ namespace DbReactor.Core.Extensions
     /// </summary>
     public static class ScriptDiscoveryExtensions
     {
+        /// <summary>
+        /// Adds a script provider to the configuration
+        /// </summary>
+        /// <param name="config">The configuration to extend</param>
+        /// <param name="provider">Script provider to add</param>
+        /// <returns>The configuration for method chaining</returns>
+        public static DbReactorConfiguration AddScriptProvider(this DbReactorConfiguration config, IScriptProvider provider)
+        {
+            if (provider == null) throw new ArgumentNullException(nameof(provider));
+
+            config.ScriptProviders.Add(provider);
+            ConfigurationUtility.RefreshMigrationBuilder(config);
+            return config;
+        }
+
+        /// <summary>
+        /// Sets a custom downgrade resolver for the configuration
+        /// </summary>
+        /// <param name="config">The configuration to extend</param>
+        /// <param name="downgradeResolver">Downgrade resolver to use</param>
+        /// <returns>The configuration for method chaining</returns>
+        public static DbReactorConfiguration AddDowngradeResolver(this DbReactorConfiguration config, IDowngradeResolver downgradeResolver)
+        {
+            if (downgradeResolver == null) throw new ArgumentNullException(nameof(downgradeResolver));
+
+            config.DowngradeResolver = downgradeResolver;
+            config.AllowDowngrades = true;
+            ConfigurationUtility.RefreshMigrationBuilder(config);
+            return config;
+        }
+
         #region Embedded SQL Scripts
 
         /// <summary>
@@ -88,7 +121,7 @@ namespace DbReactor.Core.Extensions
         /// <returns>The configuration for method chaining</returns>
         public static DbReactorConfiguration UseDowngradesFromFolder(this DbReactorConfiguration config, Assembly assembly, string baseNamespace, string downgradeFolder)
         {
-            var options = new DowngradeMatchingOptions
+            DowngradeMatchingOptions options = new DowngradeMatchingOptions
             {
                 Mode = DowngradeMatchingMode.SameName,
                 UpgradeSuffix = ".sql",
@@ -111,7 +144,7 @@ namespace DbReactor.Core.Extensions
         /// <returns>The configuration for method chaining</returns>
         public static DbReactorConfiguration UseDowngradesWithSuffix(this DbReactorConfiguration config, Assembly assembly, string baseNamespace, string downgradeFolder, string suffix = "_downgrade")
         {
-            var options = new DowngradeMatchingOptions
+            DowngradeMatchingOptions options = new DowngradeMatchingOptions
             {
                 Mode = DowngradeMatchingMode.Suffix,
                 Pattern = suffix,
@@ -135,7 +168,7 @@ namespace DbReactor.Core.Extensions
         /// <returns>The configuration for method chaining</returns>
         public static DbReactorConfiguration UseDowngradesWithPrefix(this DbReactorConfiguration config, Assembly assembly, string baseNamespace, string downgradeFolder, string prefix = "downgrade_")
         {
-            var options = new DowngradeMatchingOptions
+            DowngradeMatchingOptions options = new DowngradeMatchingOptions
             {
                 Mode = DowngradeMatchingMode.Prefix,
                 Pattern = prefix,
@@ -169,6 +202,69 @@ namespace DbReactor.Core.Extensions
             return config
                 .UseEmbeddedScriptsFromFolder(assembly, baseNamespace, normalizedUpgradeFolder)
                 .UseDowngradesFromFolder(assembly, baseNamespace, normalizedDowngradeFolder);
+        }
+
+        #endregion
+
+        #region File System Script Discovery
+
+        /// <summary>
+        /// Discovers SQL scripts from a file system directory
+        /// </summary>
+        /// <param name="config">The configuration to extend</param>
+        /// <param name="directoryPath">Directory path containing SQL script files</param>
+        /// <param name="fileExtension">File extension to search for (default: .sql)</param>
+        /// <param name="recursive">Whether to search subdirectories recursively (default: false)</param>
+        /// <returns>The configuration for method chaining</returns>
+        public static DbReactorConfiguration UseFileSystemScripts(this DbReactorConfiguration config, string directoryPath, string fileExtension = ".sql", bool recursive = false)
+        {
+            config.ScriptProviders.Add(new FileSystemScriptProvider(directoryPath, fileExtension, recursive));
+            ConfigurationUtility.RefreshMigrationBuilder(config);
+            return config;
+        }
+
+        /// <summary>
+        /// Enables downgrade operations using scripts from a file system directory
+        /// </summary>
+        /// <param name="config">The configuration to extend</param>
+        /// <param name="downgradeDirectory">Directory containing downgrade scripts</param>
+        /// <param name="fileExtension">File extension for downgrade scripts (default: .sql)</param>
+        /// <param name="matchingMode">How to match upgrade scripts to downgrade scripts (default: SameName)</param>
+        /// <param name="pattern">Pattern for suffix/prefix matching when using Suffix or Prefix modes</param>
+        /// <returns>The configuration for method chaining</returns>
+        public static DbReactorConfiguration UseFileSystemDowngrades(this DbReactorConfiguration config, string downgradeDirectory, string fileExtension = ".sql", DowngradeMatchingMode matchingMode = DowngradeMatchingMode.SameName, string pattern = null)
+        {
+            DowngradeMatchingOptions options = new DowngradeMatchingOptions
+            {
+                Mode = matchingMode,
+                Pattern = pattern,
+                UpgradeSuffix = fileExtension,
+                DowngradeSuffix = fileExtension
+            };
+
+            config.DowngradeResolver = new FileSystemDowngradeResolver(downgradeDirectory, fileExtension, options);
+            config.AllowDowngrades = true;
+            ConfigurationUtility.RefreshMigrationBuilder(config);
+            return config;
+        }
+
+        /// <summary>
+        /// Sets up file system-based script discovery with standard folder structure
+        /// </summary>
+        /// <param name="config">The configuration to extend</param>
+        /// <param name="baseDirectory">Base directory containing script folders</param>
+        /// <param name="upgradeFolder">Folder containing upgrade scripts (default: upgrades)</param>
+        /// <param name="downgradeFolder">Folder containing downgrade scripts (default: downgrades)</param>
+        /// <param name="fileExtension">File extension for script files (default: .sql)</param>
+        /// <returns>The configuration for method chaining</returns>
+        public static DbReactorConfiguration UseFileSystemFolderStructure(this DbReactorConfiguration config, string baseDirectory, string upgradeFolder = "upgrades", string downgradeFolder = "downgrades", string fileExtension = ".sql")
+        {
+            string upgradePath = Path.Combine(baseDirectory, upgradeFolder);
+            string downgradePath = Path.Combine(baseDirectory, downgradeFolder);
+
+            return config
+                .UseFileSystemScripts(upgradePath, fileExtension)
+                .UseFileSystemDowngrades(downgradePath, fileExtension);
         }
 
         #endregion

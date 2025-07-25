@@ -6,6 +6,7 @@ using DbReactor.Core.Models.Scripts;
 using DbReactor.Core.Discovery;
 using DbReactor.Core.Journaling;
 using DbReactor.Core.Services;
+using System.Threading;
 
 namespace DbReactor.Core.Tests.Engine;
 
@@ -42,8 +43,8 @@ public class MigrationFilteringServiceTests
         var migration1 = new Migration("001_Migration", script1, null);
         var migration2 = new Migration("002_Migration", script2, null);
         
-        _mockScriptProvider.Setup(p => p.GetScripts())
-            .Returns(new[] { script1, script2 });
+        _mockScriptProvider.Setup(p => p.GetScriptsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { script1, script2 });
         
         _mockJournal.Setup(j => j.HasBeenExecutedAsync(It.Is<IMigration>(m => m.Name == "001_Migration"), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
@@ -71,8 +72,8 @@ public class MigrationFilteringServiceTests
         var migration1 = new Migration("001_Migration", script1, null);
         var migration2 = new Migration("002_Migration", script2, null);
         
-        _mockScriptProvider.Setup(p => p.GetScripts())
-            .Returns(new[] { script1, script2 });
+        _mockScriptProvider.Setup(p => p.GetScriptsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { script1, script2 });
         
         _mockJournal.Setup(j => j.HasBeenExecutedAsync(It.Is<IMigration>(m => m.Name == "001_Migration"), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
@@ -100,8 +101,8 @@ public class MigrationFilteringServiceTests
         var migration1 = new Migration("001_Migration", script1, null);
         var migration2 = new Migration("002_Migration", script2, null);
         
-        _mockScriptProvider.Setup(p => p.GetScripts())
-            .Returns(new[] { script1, script2 });
+        _mockScriptProvider.Setup(p => p.GetScriptsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { script1, script2 });
         
         _mockJournal.Setup(j => j.HasBeenExecutedAsync(It.Is<IMigration>(m => m.Name == "001_Migration"), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
@@ -125,8 +126,8 @@ public class MigrationFilteringServiceTests
         var script1 = new GenericScript("001_Migration.sql", "CREATE TABLE Test1");
         var script2 = new GenericScript("002_Migration.sql", "CREATE TABLE Test2");
         
-        _mockScriptProvider.Setup(p => p.GetScripts())
-            .Returns(new[] { script1, script2 });
+        _mockScriptProvider.Setup(p => p.GetScriptsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { script1, script2 });
         
         _mockJournal.Setup(j => j.HasBeenExecutedAsync(It.Is<IMigration>(m => m.UpgradeScript == script1), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
@@ -151,8 +152,8 @@ public class MigrationFilteringServiceTests
         var script1 = new GenericScript("001_Migration.sql", "CREATE TABLE Test1");
         var migration1 = new Migration("001_Migration", script1, null);
         
-        _mockScriptProvider.Setup(p => p.GetScripts())
-            .Returns(new[] { script1 });
+        _mockScriptProvider.Setup(p => p.GetScriptsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { script1 });
         
         _mockJournal.Setup(j => j.HasBeenExecutedAsync(It.Is<IMigration>(m => m.Name == "001_Migration"), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
@@ -174,8 +175,8 @@ public class MigrationFilteringServiceTests
         var script1 = new GenericScript("001_Migration.sql", "CREATE TABLE Test1");
         var migration1 = new Migration("001_Migration", script1, null);
         
-        _mockScriptProvider.Setup(p => p.GetScripts())
-            .Returns(new[] { script1 });
+        _mockScriptProvider.Setup(p => p.GetScriptsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { script1 });
         
         _mockJournal.Setup(j => j.HasBeenExecutedAsync(It.Is<IMigration>(m => m.Name == "001_Migration"), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
@@ -209,8 +210,8 @@ public class MigrationFilteringServiceTests
             MigrationName = "002_Migration" 
         };
         
-        _mockScriptProvider.Setup(p => p.GetScripts())
-            .Returns(new[] { mockScript1.Object });
+        _mockScriptProvider.Setup(p => p.GetScriptsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { mockScript1.Object });
         
         _mockJournal.Setup(j => j.GetExecutedMigrationsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[] { journalEntry1, journalEntry2 });
@@ -250,8 +251,8 @@ public class MigrationFilteringServiceTests
             MigrationName = "002_Migration" 
         };
         
-        _mockScriptProvider.Setup(p => p.GetScripts())
-            .Returns(new[] { mockScript1.Object, mockScript2.Object });
+        _mockScriptProvider.Setup(p => p.GetScriptsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { mockScript1.Object, mockScript2.Object });
         
         _mockJournal.Setup(j => j.GetExecutedMigrationsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[] { journalEntry1, journalEntry2 });
@@ -286,8 +287,8 @@ public class MigrationFilteringServiceTests
             MigrationName = "003_Migration" 
         };
         
-        _mockScriptProvider.Setup(p => p.GetScripts())
-            .Returns(new IScript[0]);
+        _mockScriptProvider.Setup(p => p.GetScriptsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IScript[0]);
         
         _mockJournal.Setup(j => j.GetExecutedMigrationsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[] { journalEntry1, journalEntry2, journalEntry3 });
@@ -314,8 +315,8 @@ public class MigrationFilteringServiceTests
         var migration2 = new Migration("002_Migration", new GenericScript("002.sql", "SQL2"), null);
         
         _configuration.MigrationBuilder = _mockMigrationBuilder.Object;
-        _mockMigrationBuilder.Setup(b => b.BuildMigrations())
-            .Returns(new[] { migration1, migration2 });
+        _mockMigrationBuilder.Setup(b => b.BuildMigrationsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { migration1, migration2 });
         
         _mockJournal.Setup(j => j.HasBeenExecutedAsync(It.IsAny<IMigration>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
@@ -326,8 +327,8 @@ public class MigrationFilteringServiceTests
         // Then
         using (new AssertionScope())
         {
-            _mockMigrationBuilder.Verify(b => b.BuildMigrations(), Times.Once);
-            _mockScriptProvider.Verify(p => p.GetScripts(), Times.Never);
+            _mockMigrationBuilder.Verify(b => b.BuildMigrationsAsync(It.IsAny<CancellationToken>()), Times.Once);
+            _mockScriptProvider.Verify(p => p.GetScriptsAsync(It.IsAny<CancellationToken>()), Times.Never);
             result.Should().HaveCount(2);
         }
     }
@@ -341,8 +342,8 @@ public class MigrationFilteringServiceTests
         var script3 = new GenericScript("002_Migration", "CREATE TABLE Test2");
         
         _configuration.ExecutionOrder = ScriptExecutionOrder.ByNameAscending;
-        _mockScriptProvider.Setup(p => p.GetScripts())
-            .Returns(new[] { script1, script2, script3 });
+        _mockScriptProvider.Setup(p => p.GetScriptsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { script1, script2, script3 });
         
         _mockJournal.Setup(j => j.HasBeenExecutedAsync(It.IsAny<IMigration>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
@@ -372,8 +373,8 @@ public class MigrationFilteringServiceTests
         var script3 = new GenericScript("003_Migration.sql", "CREATE TABLE Test3");
         
         _configuration.ExecutionOrder = ScriptExecutionOrder.ByNameDescending;
-        _mockScriptProvider.Setup(p => p.GetScripts())
-            .Returns(new[] { script1, script2, script3 });
+        _mockScriptProvider.Setup(p => p.GetScriptsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { script1, script2, script3 });
         
         _mockJournal.Setup(j => j.HasBeenExecutedAsync(It.IsAny<IMigration>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);

@@ -1,0 +1,7 @@
+-- Migration Rollback: {Name}
+-- Created: {CreatedAt}
+-- Description: Rollback changes from {Name}
+
+-- Add your rollback SQL here
+-- Example:
+-- DROP TABLE IF EXISTS Users;

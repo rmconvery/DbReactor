@@ -1,4 +1,6 @@
 using DbReactor.Core.Configuration;
+using DbReactor.Core.Provisioning;
+using System;
 
 namespace DbReactor.Core.Extensions
 {
@@ -17,6 +19,20 @@ namespace DbReactor.Core.Extensions
         {
             config.CreateDatabaseIfNotExists = true;
             config.DatabaseCreationTemplate = creationTemplate;
+            return config;
+        }
+
+        /// <summary>
+        /// Sets a custom database provisioner for creating databases
+        /// </summary>
+        /// <param name="config">The configuration to extend</param>
+        /// <param name="databaseProvisioner">Custom database provisioner to use</param>
+        /// <returns>The configuration for method chaining</returns>
+        public static DbReactorConfiguration AddDatabaseProvisioner(this DbReactorConfiguration config, IDatabaseProvisioner databaseProvisioner)
+        {
+            if (databaseProvisioner == null) throw new ArgumentNullException(nameof(databaseProvisioner));
+
+            config.DatabaseProvisioner = databaseProvisioner;
             return config;
         }
     }

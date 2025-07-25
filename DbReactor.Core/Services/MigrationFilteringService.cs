@@ -1,6 +1,7 @@
 using DbReactor.Core.Abstractions;
 using DbReactor.Core.Configuration;
 using DbReactor.Core.Constants;
+using DbReactor.Core.Discovery;
 using DbReactor.Core.Enumerations;
 using DbReactor.Core.Models;
 using System;
@@ -31,7 +32,7 @@ namespace DbReactor.Core.Services
 
         public async Task<IEnumerable<IMigration>> GetPendingUpgradesAsync(CancellationToken cancellationToken = default)
         {
-            var migrations = GetMigrations();
+            var migrations = await GetMigrationsAsync(cancellationToken);
             var pendingMigrations = new List<IMigration>();
             
             foreach (var migration in migrations)
@@ -48,7 +49,7 @@ namespace DbReactor.Core.Services
 
         public async Task<IEnumerable<IMigration>> GetAppliedUpgradesAsync(CancellationToken cancellationToken = default)
         {
-            var migrations = GetMigrations();
+            var migrations = await GetMigrationsAsync(cancellationToken);
             var appliedMigrations = new List<IMigration>();
             
             foreach (var migration in migrations)
@@ -69,7 +70,7 @@ namespace DbReactor.Core.Services
             var executedMigrationJournalEntries = await _configuration.MigrationJournal.GetExecutedMigrationsAsync(cancellationToken);
 
             // Get migrations
-            var migrations = GetMigrations();
+            var migrations = await GetMigrationsAsync(cancellationToken);
 
             // Identify journal entries that are not in the upgrade scripts list
             return executedMigrationJournalEntries
@@ -79,21 +80,25 @@ namespace DbReactor.Core.Services
 
         public async Task<IEnumerable<IMigration>> GetAllMigrationsAsync(CancellationToken cancellationToken = default)
         {
-            return await Task.FromResult(GetMigrations());
+            return await GetMigrationsAsync(cancellationToken);
         }
 
-        private IEnumerable<IMigration> GetMigrations()
+        private async Task<IEnumerable<IMigration>> GetMigrationsAsync(CancellationToken cancellationToken = default)
         {
             IEnumerable<IMigration> migrations;
 
             if (_configuration.MigrationBuilder != null)
             {
-                migrations = _configuration.MigrationBuilder.BuildMigrations();
+                migrations = await _configuration.MigrationBuilder.BuildMigrationsAsync(cancellationToken);
             }
             else
             {
-                var allScripts = _configuration.ScriptProviders
-                    .SelectMany(provider => provider.GetScripts());
+                List<IScript> allScripts = new List<IScript>();
+                foreach (IScriptProvider provider in _configuration.ScriptProviders)
+                {
+                    IEnumerable<IScript> scripts = await provider.GetScriptsAsync(cancellationToken);
+                    allScripts.AddRange(scripts);
+                }
                     
                 migrations = allScripts
                     .Select(script => new Migration(
