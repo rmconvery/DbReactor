@@ -116,7 +116,8 @@ namespace DbReactor.Core.Services
         private async Task AddDowngradeMigrations(DbReactorPreviewResult result, CancellationToken cancellationToken)
         {
             IEnumerable<MigrationJournalEntry> entriesToDowngrade = await _filteringService.GetEntriesToDowngradeAsync(cancellationToken);
-            foreach (MigrationJournalEntry entry in entriesToDowngrade)
+            // Only include entries that have a non-empty DowngradeScript
+            foreach (MigrationJournalEntry entry in entriesToDowngrade.Where(e => !string.IsNullOrWhiteSpace(e.DowngradeScript)))
             {
                 _configuration.LogProvider?.WriteInformation($"Would execute downgrade migration: {entry.MigrationName}");
                 result.MigrationResults.Add(CreateDowngradeResult(entry));
