@@ -51,5 +51,19 @@ namespace DbReactor.Core.Abstractions
         /// <param name="cancellationToken">Token to cancel the operation</param>
         /// <returns>Collection of applied migrations</returns>
         Task<IEnumerable<IMigration>> GetAppliedUpgradesAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Executes database seeds asynchronously
+        /// </summary>
+        /// <param name="cancellationToken">Token to cancel the operation</param>
+        /// <returns>The result of the seeding process</returns>
+        Task<DbReactorResult> ExecuteSeedsAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Previews which seeds would be executed without actually executing them
+        /// </summary>
+        /// <param name="cancellationToken">Token to cancel the operation</param>
+        /// <returns>Preview result showing which seeds would execute</returns>
+        Task<DbReactorSeedPreviewResult> PreviewSeedsAsync(CancellationToken cancellationToken = default);
     }
 }

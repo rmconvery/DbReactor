@@ -17,11 +17,15 @@ namespace DbReactor.Core.Engine
     {
         private readonly MigrationOrchestrator _orchestrator;
         private readonly MigrationFilteringService _filteringService;
+        private readonly SeedOrchestrator _seedOrchestrator;
+        private readonly DbReactorConfiguration _configuration;
 
         public DbReactorEngine(DbReactorConfiguration configuration)
         {
             if (configuration == null)
                 throw new ArgumentNullException(nameof(configuration));
+
+            _configuration = configuration;
 
             // Validate configuration
             ConfigurationValidationService validationService = new ConfigurationValidationService();
@@ -31,6 +35,25 @@ namespace DbReactor.Core.Engine
             ScriptExecutionService executionService = new ScriptExecutionService(configuration);
             _filteringService = new MigrationFilteringService(configuration);
             _orchestrator = new MigrationOrchestrator(configuration, executionService, _filteringService);
+
+            // Initialize seeding services if enabled
+            if (configuration.EnableSeeding && configuration.SeedJournal != null)
+            {
+                var seedDiscoveryService = new SeedDiscoveryService(
+                    configuration.SeedScriptProviders,
+                    configuration.SeedStrategyResolvers,
+                    configuration.GlobalSeedStrategy,
+                    configuration.FallbackSeedStrategy);
+
+                var variableService = new VariableSubstitutionService();
+
+                _seedOrchestrator = new SeedOrchestrator(
+                    configuration,
+                    seedDiscoveryService,
+                    configuration.SeedJournal,
+                    configuration.ScriptExecutor,
+                    variableService);
+            }
         }
 
         public async Task<DbReactorResult> RunAsync(CancellationToken cancellationToken = default)
@@ -71,6 +94,30 @@ namespace DbReactor.Core.Engine
         public async Task<DbReactorPreviewResult> RunPreviewAsync(CancellationToken cancellationToken = default)
         {
             return await _orchestrator.RunPreviewAsync(cancellationToken);
+        }
+
+        public async Task<DbReactorResult> ExecuteSeedsAsync(CancellationToken cancellationToken = default)
+        {
+            if (!_configuration.EnableSeeding || _seedOrchestrator == null)
+            {
+                return new DbReactorResult
+                {
+                    Successful = true,
+                    ErrorMessage = "Seeding is not enabled or configured."
+                };
+            }
+
+            return await _seedOrchestrator.ExecuteSeedsAsync(cancellationToken);
+        }
+
+        public async Task<DbReactorSeedPreviewResult> PreviewSeedsAsync(CancellationToken cancellationToken = default)
+        {
+            if (!_configuration.EnableSeeding || _seedOrchestrator == null)
+            {
+                return new DbReactorSeedPreviewResult();
+            }
+
+            return await _seedOrchestrator.PreviewSeedsAsync(cancellationToken);
         }
     }
 }

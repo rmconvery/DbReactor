@@ -1,3 +1,4 @@
+using DbReactor.Core.Abstractions;
 using DbReactor.Core.Discovery;
 using DbReactor.Core.Enumerations;
 using DbReactor.Core.Execution;
@@ -100,6 +101,40 @@ namespace DbReactor.Core.Configuration
         /// Log provider for migration execution logging
         /// </summary>
         public ILogProvider LogProvider { get; set; }
+
+        #endregion
+
+        #region Seeding Configuration
+
+        /// <summary>
+        /// Collection of script providers for discovering seed scripts
+        /// </summary>
+        public List<IScriptProvider> SeedScriptProviders { get; set; } = new List<IScriptProvider>();
+
+        /// <summary>
+        /// Collection of strategy resolvers for determining seed execution strategies
+        /// </summary>
+        public List<ISeedStrategyResolver> SeedStrategyResolvers { get; set; } = new List<ISeedStrategyResolver>();
+
+        /// <summary>
+        /// Global strategy to apply to all seeds (overrides per-seed strategies)
+        /// </summary>
+        public ISeedExecutionStrategy GlobalSeedStrategy { get; set; }
+
+        /// <summary>
+        /// Fallback strategy when no other strategy can be determined
+        /// </summary>
+        public ISeedExecutionStrategy FallbackSeedStrategy { get; set; }
+
+        /// <summary>
+        /// Seed journal for tracking seed execution history
+        /// </summary>
+        public ISeedJournal SeedJournal { get; set; }
+
+        /// <summary>
+        /// Whether seeding is enabled (default: false)
+        /// </summary>
+        public bool EnableSeeding { get; set; } = false;
 
         #endregion
     }

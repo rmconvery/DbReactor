@@ -63,6 +63,53 @@ namespace DbReactor.Core.Constants
         }
 
         /// <summary>
+        /// Seed strategy constants
+        /// </summary>
+        public static class SeedStrategies
+        {
+            public const string RunOnce = "RunOnce";
+            public const string RunAlways = "RunAlways";
+            public const string RunIfChanged = "RunIfChanged";
+        }
+
+        /// <summary>
+        /// Seed execution reason constants
+        /// </summary>
+        public static class SeedExecutionReasons
+        {
+            public const string AlreadyExecutedRunOnce = "Already executed (RunOnce strategy)";
+            public const string ContentNotChangedRunIfChanged = "Content hasn't changed (RunIfChanged strategy)";
+            public const string StrategyDeterminedNotToExecute = "Strategy '{0}' determined not to execute";
+            public const string WillExecuteEveryTimeRunAlways = "Will execute every time (RunAlways strategy)";
+            public const string NotYetExecutedRunOnce = "Not yet executed (RunOnce strategy)";
+            public const string ContentHasChangedRunIfChanged = "Content has changed (RunIfChanged strategy)";
+            public const string StrategyDeterminedToExecute = "Strategy '{0}' determined to execute";
+        }
+
+        /// <summary>
+        /// Seed naming convention constants
+        /// </summary>
+        public static class SeedNamingConventions
+        {
+            public const string RunOnce = "runonce";
+            public const string RunOnceUnderscore = "run_once";
+            public const string RunAlways = "runalways";
+            public const string RunAlwaysUnderscore = "run_always";
+            public const string RunIfChanged = "runifchanged";
+            public const string RunIfChangedUnderscore = "run_if_changed";
+        }
+
+        /// <summary>
+        /// Seed folder structure constants
+        /// </summary>
+        public static class SeedFolders
+        {
+            public const string RunOnce = "run-once";
+            public const string RunAlways = "run-always";
+            public const string RunIfChanged = "run-if-changed";
+        }
+
+        /// <summary>
         /// Error message constants
         /// </summary>
         public static class ErrorMessages
