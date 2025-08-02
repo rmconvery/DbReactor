@@ -13,6 +13,9 @@
     <None Remove="Scripts\upgrades\20250714\M004_CreateOrdersTable.sql" />
     <None Remove="Scripts\upgrades\20250714\M005_EnvironmentSpecificSettings.sql" />
     <None Remove="Scripts\upgrades\20250714\M006_RulesInit.sql" />
+    <None Remove="Seeds\S001_SeedAdminUser_runonce.sql" />
+    <None Remove="Seeds\S002_SeedSampleProducts_runifchanged.sql" />
+    <None Remove="Seeds\S003_UpdateStatistics_runalways.sql" />
   </ItemGroup>
 
   <!-- Mixed script structure with SQL and code scripts -->
@@ -26,6 +29,9 @@
     <EmbeddedResource Include="Scripts\upgrades\20250714\M004_CreateOrdersTable.sql" />
     <EmbeddedResource Include="Scripts\upgrades\20250714\M005_EnvironmentSpecificSettings.sql" />
     <EmbeddedResource Include="Scripts\upgrades\20250714\M006_RulesInit.sql" />
+    <EmbeddedResource Include="Seeds\run-once\SRO1_SeedAdminUser.sql" />
+    <EmbeddedResource Include="Seeds\run-if-changed\SRIC1_SeedSampleProducts.sql" />
+    <EmbeddedResource Include="Seeds\run-always\SRA1_UpdateStatistics.sql" />
   </ItemGroup>
 
   <!-- Code scripts are automatically included by .NET SDK -->

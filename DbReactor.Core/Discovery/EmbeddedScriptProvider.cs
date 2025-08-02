@@ -48,7 +48,25 @@ namespace DbReactor.Core.Discovery
                 .Where(r => r.StartsWith(_resourceNamespace, StringComparison.Ordinal)
                     && r.EndsWith(_scriptSuffix, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(r => r)
-                .Select(resourceName => new EmbeddedScript(_assembly, resourceName));
+                .Select(resourceName => 
+                {
+                    try
+                    {
+                        var script = new EmbeddedScript(_assembly, resourceName);
+                        // Filter out scripts with empty content
+                        if (string.IsNullOrEmpty(script.Script))
+                        {
+                            return null;
+                        }
+                        return script;
+                    }
+                    catch (Exception)
+                    {
+                        // Skip scripts that can't be created
+                        return null;
+                    }
+                })
+                .Where(s => s != null);
             
             return Task.FromResult(scripts);
         }

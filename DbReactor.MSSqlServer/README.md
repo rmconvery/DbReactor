@@ -358,6 +358,182 @@ catch (Exception ex)
 }
 ```
 
+## SQL Server Data Seeding
+
+DbReactor.MSSqlServer provides full seeding support with SQL Server-optimized features and journaling.
+
+### Quick Seeding Setup
+
+```csharp
+var config = new DbReactorConfiguration()
+    .UseSqlServer(connectionString)
+    .UseStandardFolderStructure(typeof(Program).Assembly)
+    .EnableSqlServerSeeding(typeof(Program).Assembly)  // One-line seeding setup
+    .UseConsoleLogging();
+
+var engine = new DbReactorEngine(config);
+var result = await engine.RunAsync();  // Runs migrations, then seeds
+```
+
+### Seeding Configuration Options
+
+#### Basic Seeding
+```csharp
+var config = new DbReactorConfiguration()
+    .UseSqlServer(connectionString)
+    .EnableSqlServerSeeding();  // Enable with defaults
+```
+
+#### Custom Schema and Table
+```csharp
+var config = new DbReactorConfiguration()
+    .UseSqlServer(connectionString)
+    .EnableSqlServerSeeding("custom_schema", "my_seed_journal");
+```
+
+#### Multiple Seed Sources
+```csharp
+var config = new DbReactorConfiguration()
+    .UseSqlServer(connectionString)
+    .EnableSqlServerSeeding()
+    .UseEmbeddedSeeds(typeof(CoreModule).Assembly, "CoreData")
+    .UseEmbeddedSeeds(typeof(AuthModule).Assembly, "AuthData")
+    .UseFileSystemSeeds(@"C:\Seeds\Production");
+```
+
+### SQL Server Seed Examples
+
+#### Using SQL Server Features
+```sql
+-- Seeds/run-once/S001_SeedUsers.sql
+MERGE [Users] AS target
+USING (VALUES 
+    ('admin', 'admin@company.com', 'Administrator', NEWID()),
+    ('guest', 'guest@company.com', 'ReadOnly', NEWID())
+) AS source ([Username], [Email], [Role], [Id])
+ON target.[Username] = source.[Username]
+WHEN NOT MATCHED THEN 
+    INSERT ([Id], [Username], [Email], [Role], [CreatedAt])
+    VALUES (source.[Id], source.[Username], source.[Email], source.[Role], GETUTCDATE());
+```
+
+#### SQL Server Variables and Functions
+```sql
+-- Seeds/run-always/S002_UpdateStatistics.sql  
+UPDATE [SystemStats] 
+SET 
+    [LastUpdated] = GETUTCDATE(),
+    [ServerName] = @@SERVERNAME,
+    [DatabaseName] = DB_NAME(),
+    [Version] = @@VERSION;
+
+-- Update row count statistics
+UPDATE [TableStats] 
+SET [RowCount] = (SELECT COUNT(*) FROM [Users])
+WHERE [TableName] = 'Users';
+```
+
+#### Environment-Specific Seeds
+```sql
+-- Seeds/run-if-changed/S003_SeedConfiguration.sql
+MERGE [Configuration] AS target
+USING (VALUES 
+    ('MaxLoginAttempts', '{{MaxLoginAttempts}}'),
+    ('SessionTimeout', '{{SessionTimeout}}'),
+    ('Environment', '{{Environment}}'),
+    ('FeatureFlags.NewUI', '{{EnableNewUI}}')
+) AS source ([Key], [Value])
+ON target.[Key] = source.[Key]
+WHEN MATCHED THEN 
+    UPDATE SET [Value] = source.[Value], [UpdatedAt] = GETUTCDATE()
+WHEN NOT MATCHED THEN 
+    INSERT ([Key], [Value], [CreatedAt], [UpdatedAt])
+    VALUES (source.[Key], source.[Value], GETUTCDATE(), GETUTCDATE());
+```
+
+### SQL Server Seed Journal
+
+The seed journal is automatically created in SQL Server:
+
+```sql
+-- Default seed journal structure
+CREATE TABLE [dbo].[__seed_journal] (
+    [Id] [int] IDENTITY(1,1) NOT NULL,
+    [SeedName] [nvarchar](255) NOT NULL,
+    [Hash] [nvarchar](64) NOT NULL,
+    [Strategy] [nvarchar](50) NOT NULL,
+    [ExecutedOn] [datetime2](7) NOT NULL,
+    [Duration] [time](7) NOT NULL,
+    CONSTRAINT [PK___seed_journal] PRIMARY KEY CLUSTERED ([Id] ASC)
+);
+
+-- Query seed execution history
+SELECT 
+    [SeedName],
+    [Strategy], 
+    [ExecutedOn],
+    [Duration]
+FROM [dbo].[__seed_journal] 
+ORDER BY [ExecutedOn] DESC;
+```
+
+### SQL Server Performance Considerations
+
+#### Batch Operations
+```sql
+-- Seeds/run-once/S004_SeedLargeDataset.sql
+-- Use batch inserts for large datasets
+INSERT INTO [Products] ([Name], [Category], [Price])
+VALUES 
+    ('Product 1', 'Electronics', 99.99),
+    ('Product 2', 'Electronics', 149.99),
+    -- ... batch of 1000 rows
+    ('Product 1000', 'Books', 29.99);
+```
+
+#### Index Management
+```sql
+-- Seeds/run-once/S005_SeedWithIndexOptimization.sql
+-- Disable indexes during large data loads
+ALTER INDEX [IX_Products_Category] ON [Products] DISABLE;
+
+-- Insert large dataset
+INSERT INTO [Products] ([Name], [Category], [Price])
+SELECT [Name], [Category], [Price] FROM [StagingProducts];
+
+-- Rebuild indexes
+ALTER INDEX [IX_Products_Category] ON [Products] REBUILD;
+```
+
+### Troubleshooting SQL Server Seeding
+
+#### Seed Journal Issues
+```sql
+-- Check seed journal table exists
+SELECT * FROM INFORMATION_SCHEMA.TABLES 
+WHERE TABLE_NAME = '__seed_journal';
+
+-- Manually reset a seed (for testing)
+DELETE FROM [__seed_journal] 
+WHERE [SeedName] = 'YourSeed.sql';
+```
+
+#### Permission Issues
+```sql
+-- Grant necessary permissions for seeding
+GRANT INSERT, UPDATE, DELETE, SELECT ON [dbo].[__seed_journal] TO [DbReactorUser];
+GRANT CREATE TABLE TO [DbReactorUser];  -- For journal table creation
+```
+
+#### Connection Issues
+```csharp
+// Use connection string with appropriate permissions
+var connectionString = "Server=localhost;Database=MyApp;Integrated Security=true;MultipleActiveResultSets=true;";
+
+// Or with SQL authentication
+var connectionString = "Server=localhost;Database=MyApp;User Id=dbuser;Password=password;MultipleActiveResultSets=true;";
+```
+
 ## Best Practices
 
 1. **Use Transactions**: Each migration runs in its own transaction
