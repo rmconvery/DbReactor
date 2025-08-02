@@ -57,7 +57,7 @@ namespace DbReactor.Core.Services
             return allScripts.Select(script => new Seed(
                 script.Name,
                 script,
-                DetermineStrategy(script),
+                DetermineStrategy(script, script.Name),
                 script.Hash
             ));
         }

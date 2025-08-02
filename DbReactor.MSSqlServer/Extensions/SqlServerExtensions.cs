@@ -1,4 +1,6 @@
 using DbReactor.Core.Configuration;
+using DbReactor.Core.Extensions;
+using DbReactor.Core.Seeding.Strategies;
 using DbReactor.MSSqlServer.Constants;
 using DbReactor.MSSqlServer.Execution;
 using DbReactor.MSSqlServer.Execution.DbReactor.MSSqlServer.Implementations.Execution;
@@ -105,5 +107,60 @@ namespace DbReactor.MSSqlServer.Extensions
         }
 
         #endregion
+
+        #region Seeding Configuration
+
+        /// <summary>
+        /// Configures SQL Server seed journal for tracking seed execution
+        /// </summary>
+        /// <param name="config">The configuration to extend</param>
+        /// <param name="schemaName">Schema name for seed journal table (default: dbo)</param>
+        /// <param name="tableName">Seed journal table name (default: __seed_journal)</param>
+        /// <returns>The configuration for method chaining</returns>
+        public static DbReactorConfiguration UseSqlServerSeedJournal(this DbReactorConfiguration config, string schemaName = SqlServerConstants.Defaults.SchemaName, string tableName = "__seed_journal")
+        {
+            var seedJournal = new SqlServerSeedJournal(schemaName, tableName);
+            if (config.ConnectionManager != null)
+            {
+                seedJournal.SetConnectionManager(config.ConnectionManager);
+            }
+            config.SeedJournal = seedJournal;
+            return config;
+        }
+
+        /// <summary>
+        /// Enables SQL Server seeding with standard configuration
+        /// </summary>
+        /// <param name="config">The configuration to extend</param>
+        /// <param name="schemaName">Schema name for seed journal table (default: dbo)</param>
+        /// <param name="tableName">Seed journal table name (default: __seed_journal)</param>
+        /// <returns>The configuration for method chaining</returns>
+        public static DbReactorConfiguration EnableSqlServerSeeding(this DbReactorConfiguration config, string schemaName = SqlServerConstants.Defaults.SchemaName, string tableName = "__seed_journal")
+        {
+            return config
+                .UseSqlServerSeedJournal(schemaName, tableName)
+                .EnableSeeding()
+                .UseStandardSeedStrategies()
+                .UseFallbackSeedStrategy(new RunOnceSeedStrategy());
+        }
+
+        /// <summary>
+        /// Enables SQL Server seeding with embedded scripts from assembly
+        /// </summary>
+        /// <param name="config">The configuration to extend</param>
+        /// <param name="assembly">Assembly containing embedded seed scripts</param>
+        /// <param name="seedFolder">Folder name containing seed scripts (default: Seeds)</param>
+        /// <param name="schemaName">Schema name for seed journal table (default: dbo)</param>
+        /// <param name="tableName">Seed journal table name (default: __seed_journal)</param>
+        /// <returns>The configuration for method chaining</returns>
+        public static DbReactorConfiguration EnableSqlServerSeeding(this DbReactorConfiguration config, System.Reflection.Assembly assembly, string seedFolder = "Seeds", string schemaName = SqlServerConstants.Defaults.SchemaName, string tableName = "__seed_journal")
+        {
+            return config
+                .EnableSqlServerSeeding(schemaName, tableName)
+                .UseEmbeddedSeeds(assembly, seedFolder);
+        }
+
+        #endregion
+
     }
 }

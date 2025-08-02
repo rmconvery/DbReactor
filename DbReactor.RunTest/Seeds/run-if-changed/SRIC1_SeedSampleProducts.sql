@@ -7,7 +7,7 @@ DELETE FROM Products WHERE ProductName LIKE 'Sample%'
 -- Insert sample products for ${Environment} environment
 INSERT INTO Products (ProductName, Price, CreatedAt)
 VALUES 
-    ('Sample Widget', 19.99, GETUTCDATE()),
+    ('Sample Widget', 19.98, GETUTCDATE()),
     ('Sample Gadget', 29.99, GETUTCDATE()),
     ('Sample Tool', 39.99, GETUTCDATE())
 

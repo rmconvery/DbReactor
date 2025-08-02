@@ -129,8 +129,8 @@ namespace DbReactor.Core.Services
             {
                 _configuration.LogProvider?.WriteInformation("Starting seed preview...");
 
-                // Ensure seed journal table exists
-                await _seedJournal.EnsureTableExistsAsync(_configuration.ConnectionManager, cancellationToken);
+                // Check if database exists first (like migration preview does)
+                bool databaseExists = await CheckDatabaseExistsAsync(cancellationToken);
 
                 // Get all seeds
                 var seeds = await _discoveryService.GetSeedsAsync(cancellationToken);
@@ -140,6 +140,77 @@ namespace DbReactor.Core.Services
                     _configuration.LogProvider?.WriteInformation("No seeds found for preview.");
                     return result;
                 }
+
+                if (!databaseExists)
+                {
+                    await HandleNonExistentDatabasePreview(result, seeds);
+                }
+                else
+                {
+                    await HandleExistingDatabasePreview(result, seeds, cancellationToken);
+                }
+
+                _configuration.LogProvider?.WriteInformation($"Seed preview completed. {result.Summary}");
+            }
+            catch (Exception ex)
+            {
+                _configuration.LogProvider?.WriteError($"Seed preview failed: {ex.Message}");
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Handles seed preview when database doesn't exist yet
+        /// </summary>
+        /// <param name="result">Preview result to populate</param>
+        /// <param name="seeds">All discovered seeds</param>
+        /// <returns>Task</returns>
+        private async Task HandleNonExistentDatabasePreview(DbReactorSeedPreviewResult result, IEnumerable<ISeed> seeds)
+        {
+            if (_configuration.CreateDatabaseIfNotExists)
+            {
+                _configuration.LogProvider?.WriteInformation("Database does not exist - would be created. All seeds would be analyzed after migrations complete.");
+                
+                // For preview purposes, assume all seeds would execute based on their strategy
+                foreach (var seed in seeds)
+                {
+                    var wouldExecute = GetDefaultExecutionForStrategy(seed.Strategy.Name);
+                    var reason = wouldExecute 
+                        ? $"Would execute (database would be created, {seed.Strategy.Name} strategy)"
+                        : $"Would not execute ({seed.Strategy.Name} strategy)";
+
+                    var previewResult = new SeedPreviewResult
+                    {
+                        Seed = seed,
+                        SeedName = seed.Name,
+                        Strategy = seed.Strategy.Name,
+                        WouldExecute = wouldExecute,
+                        ExecutionReason = reason
+                    };
+
+                    result.SeedResults.Add(previewResult);
+                }
+            }
+            else
+            {
+                _configuration.LogProvider?.WriteError("Database does not exist and CreateDatabaseIfNotExists is disabled. Seeds cannot be previewed.");
+            }
+        }
+
+        /// <summary>
+        /// Handles seed preview when database exists
+        /// </summary>
+        /// <param name="result">Preview result to populate</param>
+        /// <param name="seeds">All discovered seeds</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Task</returns>
+        private async Task HandleExistingDatabasePreview(DbReactorSeedPreviewResult result, IEnumerable<ISeed> seeds, CancellationToken cancellationToken)
+        {
+            try
+            {
+                // Ensure seed journal table exists
+                await _seedJournal.EnsureTableExistsAsync(_configuration.ConnectionManager, cancellationToken);
 
                 // Analyze each seed
                 foreach (var seed in seeds)
@@ -158,15 +229,72 @@ namespace DbReactor.Core.Services
 
                     result.SeedResults.Add(previewResult);
                 }
-
-                _configuration.LogProvider?.WriteInformation($"Seed preview completed. {result.Summary}");
             }
             catch (Exception ex)
             {
-                _configuration.LogProvider?.WriteError($"Seed preview failed: {ex.Message}");
+                _configuration.LogProvider?.WriteWarning($"Could not access seed journal: {ex.Message}. Assuming no seeds have been executed.");
+                
+                // Fallback to default behavior for each strategy
+                foreach (var seed in seeds)
+                {
+                    var wouldExecute = GetDefaultExecutionForStrategy(seed.Strategy.Name);
+                    var reason = wouldExecute 
+                        ? $"Would execute (journal inaccessible, {seed.Strategy.Name} strategy)"
+                        : $"Would not execute ({seed.Strategy.Name} strategy)";
+
+                    var previewResult = new SeedPreviewResult
+                    {
+                        Seed = seed,
+                        SeedName = seed.Name,
+                        Strategy = seed.Strategy.Name,
+                        WouldExecute = wouldExecute,
+                        ExecutionReason = reason
+                    };
+
+                    result.SeedResults.Add(previewResult);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets default execution behavior for a strategy when journal is not accessible
+        /// </summary>
+        /// <param name="strategyName">Name of the strategy</param>
+        /// <returns>True if the strategy would execute by default</returns>
+        private static bool GetDefaultExecutionForStrategy(string strategyName)
+        {
+            if (strategyName == DbReactorConstants.SeedStrategies.RunAlways)
+                return true;
+            if (strategyName == DbReactorConstants.SeedStrategies.RunOnce)
+                return true;  // Would execute if not in journal
+            if (strategyName == DbReactorConstants.SeedStrategies.RunIfChanged)
+                return true;  // Would execute if not in journal
+            
+            return true;  // Default to true for unknown strategies
+        }
+
+        /// <summary>
+        /// Safely checks if the database exists (like migration preview does)
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>True if database exists, false otherwise</returns>
+        private async Task<bool> CheckDatabaseExistsAsync(CancellationToken cancellationToken = default)
+        {
+            if (_configuration.DatabaseProvisioner == null)
+            {
+                _configuration.LogProvider?.WriteWarning("Database provisioner not configured. Cannot check database existence.");
+                return false;
             }
 
-            return result;
+            try
+            {
+                return await _configuration.DatabaseProvisioner.DatabaseExistsAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _configuration.LogProvider?.WriteError($"Error checking database existence: {ex.Message}");
+                return false;
+            }
         }
 
         /// <summary>

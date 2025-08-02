@@ -284,6 +284,236 @@ M003_CreateIndexes.sql
 V1_0_1_CreateUsersTable.sql
 ```
 
+## Data Seeding
+
+Data seeding provides a way to populate your database with initial or reference data. Unlike migrations which handle schema changes, seeds handle data population with intelligent execution strategies.
+
+### Seeding vs Migrations
+
+| Feature | Migrations | Seeds |
+|---------|------------|--------|
+| **Purpose** | Schema changes | Data population |
+| **Execution** | Once, in order | Strategy-based |
+| **Rollback** | Supported | Not supported |
+| **When to use** | Tables, indexes, constraints | Reference data, test data |
+
+### Basic Seeding Configuration
+
+**Note:** Seeding requires a database provider package. Example with SQL Server:
+
+```csharp
+// Install: dotnet add package DbReactor.MSSqlServer
+using DbReactor.MSSqlServer.Extensions;
+
+var config = new DbReactorConfiguration()
+    .UseSqlServer(connectionString)  // Database provider required
+    .UseStandardFolderStructure(typeof(Program).Assembly)
+    .EnableSqlServerSeeding(typeof(Program).Assembly)  // Provider-specific seeding
+    .UseConsoleLogging();
+```
+
+### Seeding Strategies
+
+Seeds use execution strategies to determine when they should run:
+
+#### RunOnce (Default)
+Executes only once, tracked in the seed journal:
+```sql
+-- Seeds/run-once/S001_SeedAdminUser.sql
+INSERT INTO Users (Username, Email, Role) 
+VALUES ('admin', 'admin@company.com', 'Administrator');
+```
+
+#### RunAlways  
+Executes every time the application runs:
+```sql
+-- Seeds/run-always/S002_UpdateStatistics.sql
+-- Database-specific functions vary by provider
+UPDATE Statistics SET LastUpdated = CURRENT_TIMESTAMP;
+```
+
+#### RunIfChanged
+Executes only when the script content changes:
+```sql
+-- Seeds/run-if-changed/S003_SeedProductCategories.sql
+-- Use database-appropriate upsert syntax
+INSERT INTO ProductCategories (Name) 
+VALUES ('Electronics'), ('Clothing'), ('Books')
+ON CONFLICT DO NOTHING;  -- PostgreSQL example
+```
+
+### Folder Structure for Seeding
+
+```
+MyProject/
+├── Scripts/
+│   ├── upgrades/          # Migrations
+│   └── downgrades/        # Downgrade scripts
+└── Seeds/                 # Seed scripts
+    ├── run-once/          # Execute once
+    │   ├── S001_SeedAdminUser.sql
+    │   └── S002_SeedRoles.sql
+    ├── run-if-changed/    # Execute when content changes
+    │   ├── S003_SeedProductCategories.sql
+    │   └── S004_SeedSettings.sql
+    └── run-always/        # Execute every time
+        ├── S005_UpdateTimestamps.sql
+        └── S006_RefreshCache.sql
+```
+
+### Naming Conventions
+
+Seeds support both folder-based and name-based strategy detection:
+
+#### Folder-based (Recommended)
+```
+Seeds/run-once/S001_SeedUsers.sql      # RunOnce
+Seeds/run-always/S002_UpdateStats.sql  # RunAlways
+Seeds/run-if-changed/S003_Config.sql   # RunIfChanged
+```
+
+#### Name-based (Alternative)
+```
+Seeds/S001_SeedUsers_runonce.sql       # RunOnce
+Seeds/S002_UpdateStats_runalways.sql   # RunAlways
+Seeds/S003_Config_runifchanged.sql     # RunIfChanged
+```
+
+### Advanced Seeding Configuration
+
+#### Manual Strategy Override
+```csharp
+var config = new DbReactorConfiguration()
+    .UseDatabaseProvider(connectionString)  // Provider-specific
+    .EnableSeeding()
+    .UseEmbeddedSeeds(typeof(Program).Assembly)
+    .UseRunAlwaysSeedStrategy();  // All seeds run every time
+```
+
+#### Custom Seed Providers
+```csharp
+var config = new DbReactorConfiguration()
+    .UseDatabaseProvider(connectionString)  // Provider-specific
+    .EnableSeeding()
+    .UseSeedJournal(new MyCustomSeedJournal())
+    .AddSeedScriptProvider(new MyCustomSeedProvider())
+    .UseStandardSeedStrategies();
+```
+
+#### File System Seeds
+```csharp
+var config = new DbReactorConfiguration()
+    .UseDatabaseProvider(connectionString)  // Provider-specific
+    .EnableSeeding()
+    .UseFileSystemSeeds(@"C:\Seeds", recursive: true);
+```
+
+### Running Seeds
+
+#### Run with Migrations (Recommended)
+```csharp
+var engine = new DbReactorEngine(config);
+var result = await engine.RunAsync();  // Runs migrations first, then seeds
+
+if (result.Successful)
+{
+    Console.WriteLine($"Executed {result.Scripts.Count} scripts total");
+}
+```
+
+#### Run Seeds Only
+```csharp
+var engine = new DbReactorEngine(config);
+var result = await engine.ExecuteSeedsAsync();  // Seeds only
+
+if (result.Successful)
+{
+    Console.WriteLine($"Executed {result.Scripts.Count} seeds");
+}
+```
+
+#### Preview Seeds
+```csharp
+var engine = new DbReactorEngine(config);
+var preview = await engine.PreviewSeedsAsync();
+
+Console.WriteLine($"Seeds Preview: {preview.Summary}");
+foreach (var seed in preview.SeedResults)
+{
+    Console.WriteLine($"  - {seed.SeedName} ({seed.Strategy}): {seed.ExecutionReason}");
+}
+```
+
+### Seed Journal
+
+Seeds are tracked in a database journal table to prevent duplicate execution. The exact table structure varies by database provider, but typically includes:
+
+- **SeedName** - Name of the executed seed script
+- **Hash** - Content hash for change detection (RunIfChanged strategy)
+- **Strategy** - Execution strategy used (RunOnce, RunAlways, RunIfChanged)
+- **ExecutedOn** - Timestamp of execution
+- **Duration** - Execution time
+
+See your database provider documentation for specific table structure and querying examples.
+
+### Best Practices
+
+✅ **Recommended:**
+- Use **folder structure** for strategy organization
+- Keep seeds **idempotent** (safe to run multiple times)
+- Use database-appropriate **upsert operations** (INSERT...ON CONFLICT, MERGE, etc.)
+- Prefix seed files with **S001**, **S002**, etc.
+- Use **RunIfChanged** for configuration data
+- Use **RunOnce** for initial data setup
+- Use **RunAlways** sparingly (statistics, cache refresh)
+
+❌ **Avoid:**
+- Hardcoding environment-specific values (use variables)
+- Creating seeds that depend on specific execution order
+- Using seeds for schema changes (use migrations instead)
+- Large data imports in RunAlways seeds
+- Seeds with side effects outside the database
+
+### Variable Substitution in Seeds
+
+Seeds support the same variable substitution as migrations:
+
+```sql
+-- Seeds/run-once/S001_SeedTenant.sql
+INSERT INTO Tenants (Name, Domain, Environment) 
+VALUES ('{{TenantName}}', '{{CompanyDomain}}', '{{Environment}}');
+```
+
+```csharp
+var config = new DbReactorConfiguration()
+    .UseDatabaseProvider(connectionString)  // Provider-specific
+    .EnableSeeding(typeof(Program).Assembly)  // Provider-specific method
+    .UseVariables(new Dictionary<string, string>
+    {
+        {"TenantName", "My Company"},
+        {"CompanyDomain", "mycompany.com"},
+        {"Environment", "Production"}
+    });
+```
+
+### Troubleshooting
+
+#### Seeds Not Running
+1. Verify seeding is enabled with provider-specific extensions
+2. Check seed script providers are configured
+3. Ensure database and seed journal table exist
+4. Verify script naming follows conventions
+
+#### Strategy Not Detected
+1. Check folder structure matches: `run-once/`, `run-always/`, `run-if-changed/`
+2. Verify naming conventions: `_runonce`, `_runalways`, `_runifchanged`
+3. Add strategy resolvers: `.UseStandardSeedStrategies()`
+
+#### RunIfChanged Not Working
+1. Verify script content actually changed
+2. Check if seed was manually marked as executed in journal
+3. Ensure hash calculation is consistent
+
 ## Custom Extensibility
 
 DbReactor.Core provides extension methods to plug in custom implementations of core interfaces, allowing you to customize any aspect of the migration process:

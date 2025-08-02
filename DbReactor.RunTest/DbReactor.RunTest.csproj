@@ -29,9 +29,9 @@
     <EmbeddedResource Include="Scripts\upgrades\20250714\M004_CreateOrdersTable.sql" />
     <EmbeddedResource Include="Scripts\upgrades\20250714\M005_EnvironmentSpecificSettings.sql" />
     <EmbeddedResource Include="Scripts\upgrades\20250714\M006_RulesInit.sql" />
-    <EmbeddedResource Include="Seeds\run-once\S001_SeedAdminUser.sql" />
-    <EmbeddedResource Include="Seeds\run-if-changed\S002_SeedSampleProducts.sql" />
-    <EmbeddedResource Include="Seeds\run-always\S003_UpdateStatistics.sql" />
+    <EmbeddedResource Include="Seeds\run-once\SRO1_SeedAdminUser.sql" />
+    <EmbeddedResource Include="Seeds\run-if-changed\SRIC1_SeedSampleProducts.sql" />
+    <EmbeddedResource Include="Seeds\run-always\SRA1_UpdateStatistics.sql" />
   </ItemGroup>
 
   <!-- Code scripts are automatically included by .NET SDK -->

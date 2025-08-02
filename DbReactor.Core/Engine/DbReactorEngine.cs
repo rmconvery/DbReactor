@@ -58,7 +58,31 @@ namespace DbReactor.Core.Engine
 
         public async Task<DbReactorResult> RunAsync(CancellationToken cancellationToken = default)
         {
-            return await _orchestrator.ExecuteMigrationsAsync(cancellationToken);
+            // First, run migrations
+            var migrationResult = await _orchestrator.ExecuteMigrationsAsync(cancellationToken);
+            
+            // If migrations failed or seeding is not enabled, return migration result
+            if (!migrationResult.Successful || !_configuration.EnableSeeding || _seedOrchestrator == null)
+            {
+                return migrationResult;
+            }
+
+            // Run seeds after successful migrations
+            var seedResult = await _seedOrchestrator.ExecuteSeedsAsync(cancellationToken);
+            
+            // Combine results - migrations first, then seeds
+            var combinedResult = new DbReactorResult
+            {
+                Successful = migrationResult.Successful && seedResult.Successful,
+                Error = seedResult.Error ?? migrationResult.Error,
+                ErrorMessage = seedResult.ErrorMessage ?? migrationResult.ErrorMessage
+            };
+            
+            // Add all migration scripts first, then seed scripts
+            combinedResult.Scripts.AddRange(migrationResult.Scripts);
+            combinedResult.Scripts.AddRange(seedResult.Scripts);
+            
+            return combinedResult;
         }
 
         public async Task<DbReactorResult> ApplyUpgradesAsync(CancellationToken cancellationToken = default)
