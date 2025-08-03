@@ -1,8 +1,6 @@
 using DbReactor.Core.Abstractions;
-using DbReactor.Core.Constants;
 using DbReactor.Core.Seeding.Strategies;
 using System;
-using System.IO;
 using System.Linq;
 
 namespace DbReactor.Core.Seeding.Resolvers
@@ -26,28 +24,31 @@ namespace DbReactor.Core.Seeding.Resolvers
             try
             {
                 string pathToAnalyze;
-                
+
                 // Handle embedded resource names (contain dots) vs file system paths
                 if (scriptPath.Contains(".") && !scriptPath.Contains("\\") && !scriptPath.Contains("/"))
                 {
                     // This appears to be an embedded resource name like "DbReactor.RunTest.Seeds.run_always.S003_UpdateStatistics.sql"
                     // Remove the file extension first, then convert dots to path separators for analysis
-                    var resourceNamespace = scriptPath.Substring(0, scriptPath.LastIndexOf('.'));
-                    pathToAnalyze = resourceNamespace.Replace('.', Path.DirectorySeparatorChar);
+                    string resourceNamespace = scriptPath.Substring(0, scriptPath.LastIndexOf('.'));
+                    pathToAnalyze = resourceNamespace.Replace('.', '/');
                 }
                 else
                 {
                     pathToAnalyze = scriptPath;
                 }
 
-                var directoryName = Path.GetDirectoryName(pathToAnalyze);
+                // Normalize path separators to forward slashes for cross-platform compatibility
+                pathToAnalyze = pathToAnalyze.Replace('\\', '/');
+
+                string directoryName = GetDirectoryPath(pathToAnalyze);
                 if (string.IsNullOrEmpty(directoryName))
                     return null;
 
-                var folderName = Path.GetFileName(directoryName).ToLowerInvariant();
+                string folderName = GetLastDirectoryName(directoryName).ToLowerInvariant();
 
                 // Normalize folder name by replacing common separators with a standard one
-                var normalizedFolderName = folderName.Replace('_', '-').Replace(' ', '-');
+                string normalizedFolderName = folderName.Replace('_', '-').Replace(' ', '-');
 
                 if (IsStrategyMatch(normalizedFolderName, "run", "always"))
                     return new RunAlwaysSeedStrategy();
@@ -66,6 +67,28 @@ namespace DbReactor.Core.Seeding.Resolvers
                 // If path parsing fails, return null
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Gets the directory path from a normalized path string
+        /// </summary>
+        /// <param name="path">The normalized path using forward slashes</param>
+        /// <returns>The directory path, or null if no directory</returns>
+        private static string GetDirectoryPath(string path)
+        {
+            int lastSeparatorIndex = path.LastIndexOf('/');
+            return lastSeparatorIndex >= 0 ? path.Substring(0, lastSeparatorIndex) : null;
+        }
+
+        /// <summary>
+        /// Gets the last directory name from a directory path
+        /// </summary>
+        /// <param name="directoryPath">The directory path using forward slashes</param>
+        /// <returns>The last directory name</returns>
+        private static string GetLastDirectoryName(string directoryPath)
+        {
+            int lastSeparatorIndex = directoryPath.LastIndexOf('/');
+            return lastSeparatorIndex >= 0 ? directoryPath.Substring(lastSeparatorIndex + 1) : directoryPath;
         }
 
         /// <summary>
