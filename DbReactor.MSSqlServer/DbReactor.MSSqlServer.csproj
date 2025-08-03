@@ -41,15 +41,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="DbReactor.Core" Version="[1.1.0, 2.0.0)" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.3" />
     
     <!-- Source Link support -->
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
     <PackageReference Include="Microsoft.SqlServer.TransactSql.ScriptDom" Version="[150.4897.1,171.0.0)" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\DbReactor.Core\DbReactor.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

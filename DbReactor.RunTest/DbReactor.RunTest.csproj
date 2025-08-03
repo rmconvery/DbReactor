@@ -34,10 +34,10 @@
     <EmbeddedResource Include="Seeds\run-always\SRA1_UpdateStatistics.sql" />
   </ItemGroup>
 
-  <!-- Code scripts are automatically included by .NET SDK -->
-
   <ItemGroup>
     <ProjectReference Include="..\DbReactor.MSSqlServer\DbReactor.MSSqlServer.csproj" />
   </ItemGroup>
+
+  <!-- Code scripts are automatically included by .NET SDK -->
 
 </Project>
