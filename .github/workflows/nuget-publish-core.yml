@@ -35,7 +35,7 @@ jobs:
         dotnet-version: ${{ env.DOTNET_VERSION }}
     
     - name: Restore dependencies
-      run: dotnet restore DbReactor.Core/DbReactor.Core.csproj
+      run: dotnet restore
     
     - name: Build solution
       run: dotnet build --configuration ${{ env.CONFIGURATION }} --no-restore
