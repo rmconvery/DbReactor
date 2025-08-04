@@ -21,16 +21,23 @@ namespace DbReactor.Core.Utilities
         public static string DiscoverBaseNamespace(Assembly assembly, string scriptExtension = ".sql", string[] knownFolders = null)
         {
             if (assembly == null) throw new ArgumentNullException(nameof(assembly));
-            
+
             knownFolders = knownFolders ?? new[] { "upgrades", "downgrades", "scripts" };
-            
-            var resources = GetResourcesWithExtension(assembly, scriptExtension);
-            
-            if (!resources.Any()) 
+
+            string[] resources = GetResourcesWithExtension(assembly, scriptExtension);
+
+            if (!resources.Any())
                 return assembly.GetName().Name ?? "Unknown";
-            
-            var commonPrefixes = ExtractCommonPrefixes(resources, knownFolders);
-            
+
+            // Filter resources to only include those that contain our known folders
+            string[] relevantResources = resources.Where(resource =>
+                knownFolders.Any(folder => resource.Contains($".{folder}."))).ToArray();
+
+            // If we found resources with known folders, use only those for prefix discovery
+            string[] resourcesToAnalyze = relevantResources.Any() ? relevantResources : resources;
+
+            Dictionary<string, int> commonPrefixes = ExtractCommonPrefixes(resourcesToAnalyze, knownFolders);
+
             return commonPrefixes.OrderByDescending(kvp => kvp.Value)
                 .Select(kvp => kvp.Key)
                 .FirstOrDefault() ?? assembly.GetName().Name ?? "Unknown";
@@ -46,7 +53,7 @@ namespace DbReactor.Core.Utilities
         public static string[] GetResourcesWithExtension(Assembly assembly, string extension)
         {
             if (assembly == null) throw new ArgumentNullException(nameof(assembly));
-            
+
             return assembly.GetManifestResourceNames()
                 .Where(r => !string.IsNullOrEmpty(extension) && r.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
                 .ToArray();
@@ -62,18 +69,18 @@ namespace DbReactor.Core.Utilities
         {
             if (resourceNames == null) throw new ArgumentNullException(nameof(resourceNames));
             knownFolders = knownFolders ?? new string[0];
-            
-            var prefixCounts = new Dictionary<string, int>();
-            
+
+            Dictionary<string, int> prefixCounts = new Dictionary<string, int>();
+
             foreach (string resourceName in resourceNames)
             {
-                var prefix = ExtractNamespacePrefix(resourceName, knownFolders);
+                string prefix = ExtractNamespacePrefix(resourceName, knownFolders);
                 if (!string.IsNullOrEmpty(prefix))
                 {
                     prefixCounts[prefix] = prefixCounts.TryGetValue(prefix, out int count) ? count + 1 : 1;
                 }
             }
-            
+
             return prefixCounts;
         }
 
@@ -87,25 +94,25 @@ namespace DbReactor.Core.Utilities
         {
             if (string.IsNullOrEmpty(resourceName)) return null;
             knownFolders = knownFolders ?? new string[0];
-            
-            var parts = resourceName.Split('.');
-            
+
+            string[] parts = resourceName.Split('.');
+
             // Look for known folder indicators, prioritizing more specific folders
             // Find the LAST known folder in the path, not the first
-            var folderIndex = FindLastKnownFolderIndex(parts, knownFolders);
-            
+            int folderIndex = FindLastKnownFolderIndex(parts, knownFolders);
+
             if (folderIndex > 0)
             {
                 // Found a known folder, take everything before it
                 return string.Join(".", parts.Take(folderIndex));
             }
-            
+
             // Fallback: assume the prefix is everything except the last two parts (filename.extension)
             if (parts.Length >= 3)
             {
                 return string.Join(".", parts.Take(parts.Length - 2));
             }
-            
+
             return null;
         }
 
@@ -155,7 +162,7 @@ namespace DbReactor.Core.Utilities
         public static bool HasResourcesWithExtension(Assembly assembly, string extension)
         {
             if (assembly == null) throw new ArgumentNullException(nameof(assembly));
-            
+
             return GetResourcesWithExtension(assembly, extension).Any();
         }
 
@@ -169,16 +176,57 @@ namespace DbReactor.Core.Utilities
         public static string[] GetUniqueNamespacePrefixes(Assembly assembly, string extension = ".sql")
         {
             if (assembly == null) throw new ArgumentNullException(nameof(assembly));
-            
-            var resources = GetResourcesWithExtension(assembly, extension);
-            var knownFolders = new[] { "upgrades", "downgrades", "scripts" };
-            
+
+            string[] resources = GetResourcesWithExtension(assembly, extension);
+            string[] knownFolders = new[] { "upgrades", "downgrades", "scripts" };
+
             return resources
                 .Select(r => ExtractNamespacePrefix(r, knownFolders))
                 .Where(prefix => !string.IsNullOrEmpty(prefix))
                 .Distinct()
                 .OrderBy(prefix => prefix)
                 .ToArray();
+        }
+
+        /// <summary>
+        /// Discovers the base namespace by looking only at resources in the specified folders
+        /// </summary>
+        /// <param name="assembly">Assembly to search</param>
+        /// <param name="folders">Specific folder names to look for</param>
+        /// <returns>Base namespace</returns>
+        /// <exception cref="ArgumentNullException">Thrown when assembly is null</exception>
+        public static string DiscoverBaseNamespaceFromSpecificFolders(Assembly assembly, params string[] folders)
+        {
+            if (assembly == null) throw new ArgumentNullException(nameof(assembly));
+            if (folders == null || folders.Length == 0) throw new ArgumentException("At least one folder must be specified", nameof(folders));
+
+            string[] resources = assembly.GetManifestResourceNames()
+                .Where(r => folders.Any(folder => r.Contains($".{folder}.")))
+                .ToArray();
+
+            if (!resources.Any())
+                return assembly.GetName().Name ?? "Unknown";
+
+            // Extract the common prefix from resources that contain our specific folders
+            string prefixes = resources.Select(r =>
+            {
+                string[] parts = r.Split('.');
+                // Find the folder in the path and take everything before it
+                for (int i = 0; i < parts.Length; i++)
+                {
+                    if (folders.Contains(parts[i]))
+                    {
+                        return string.Join(".", parts.Take(i));
+                    }
+                }
+                return null;
+            })
+            .Where(p => !string.IsNullOrEmpty(p))
+            .GroupBy(p => p)
+            .OrderByDescending(g => g.Count())
+            .FirstOrDefault()?.Key;
+
+            return prefixes ?? assembly.GetName().Name ?? "Unknown";
         }
     }
 }

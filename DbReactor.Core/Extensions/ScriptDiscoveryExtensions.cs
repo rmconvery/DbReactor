@@ -195,9 +195,11 @@ namespace DbReactor.Core.Extensions
         /// <returns>The configuration for method chaining</returns>
         public static DbReactorConfiguration UseStandardFolderStructure(this DbReactorConfiguration config, Assembly assembly, string upgradeFolder = "upgrades", string downgradeFolder = "downgrades")
         {
-            string baseNamespace = AssemblyResourceUtility.DiscoverBaseNamespace(assembly);
             string normalizedUpgradeFolder = PathUtility.NormalizeToNamespace(upgradeFolder);
             string normalizedDowngradeFolder = PathUtility.NormalizeToNamespace(downgradeFolder);
+            
+            // Discover base namespace by looking only at resources in the specific folders we're using
+            string baseNamespace = AssemblyResourceUtility.DiscoverBaseNamespaceFromSpecificFolders(assembly, normalizedUpgradeFolder, normalizedDowngradeFolder);
 
             return config
                 .UseEmbeddedScriptsFromFolder(assembly, baseNamespace, normalizedUpgradeFolder)
