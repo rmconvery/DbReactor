@@ -91,7 +91,7 @@ jobs:
         sed -i "s/<FileVersion>.*<\/FileVersion>/<FileVersion>${{ steps.version.outputs.MSSQLSERVER_VERSION }}.0<\/FileVersion>/" DbReactor.MSSqlServer/DbReactor.MSSqlServer.csproj
     
     - name: Restore dependencies
-      run: dotnet restore DbReactor.MSSqlServer/DbReactor.MSSqlServer.csproj
+      run: dotnet restore
     
     - name: Build project
       run: |
