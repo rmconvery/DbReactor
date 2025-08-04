@@ -49,9 +49,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Use ProjectReference for local development, PackageReference for publishing -->
-    <ProjectReference Include="..\DbReactor.Core\DbReactor.Core.csproj" Condition="'$(UsePackageReferences)' != 'true'" />
-    <PackageReference Include="DbReactor.Core" Version="[1.1.0, 2.0.0)" Condition="'$(UsePackageReferences)' == 'true'" />
+    <!-- Core dependency version will be set by build pipeline -->
+    <PackageReference Include="DbReactor.Core" Version="$(CoreVersion)" Condition="'$(CoreVersion)' != ''" />
+    <ProjectReference Include="..\DbReactor.Core\DbReactor.Core.csproj" Condition="'$(CoreVersion)' == ''" />
   </ItemGroup>
 
   <ItemGroup>
