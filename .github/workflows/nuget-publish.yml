@@ -60,8 +60,9 @@ jobs:
     strategy:
       matrix:
         project: 
-          - { name: "DbReactor.Core", path: "DbReactor.Core/DbReactor.Core.csproj" }
-          - { name: "DbReactor.MSSqlServer", path: "DbReactor.MSSqlServer/DbReactor.MSSqlServer.csproj" }
+          - { name: "DbReactor.Core", path: "DbReactor.Core/DbReactor.Core.csproj", use_package_refs: "false" }
+          - { name: "DbReactor.MSSqlServer", path: "DbReactor.MSSqlServer/DbReactor.MSSqlServer.csproj", use_package_refs: "true" }
+      max-parallel: 1  # Force sequential execution to ensure Core is published before MSSqlServer
     
     steps:
     - uses: actions/checkout@v4
@@ -99,10 +100,10 @@ jobs:
       run: dotnet restore ${{ matrix.project.path }}
     
     - name: Build project
-      run: dotnet build ${{ matrix.project.path }} --configuration ${{ env.CONFIGURATION }} --no-restore
+      run: dotnet build ${{ matrix.project.path }} --configuration ${{ env.CONFIGURATION }} --no-restore ${{ matrix.project.use_package_refs == 'true' && '-p:UsePackageReferences=true' || '' }}
     
     - name: Create NuGet package
-      run: dotnet pack ${{ matrix.project.path }} --configuration ${{ env.CONFIGURATION }} --no-build --output ./nupkg
+      run: dotnet pack ${{ matrix.project.path }} --configuration ${{ env.CONFIGURATION }} --no-build --output ./nupkg ${{ matrix.project.use_package_refs == 'true' && '-p:UsePackageReferences=true' || '' }}
     
     - name: Upload packages as artifacts
       uses: actions/upload-artifact@v4
