@@ -49,9 +49,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Core dependency version will be set by build pipeline -->
-    <PackageReference Include="DbReactor.Core" Version="$(CoreVersion)" Condition="'$(CoreVersion)' != ''" />
-    <ProjectReference Include="..\DbReactor.Core\DbReactor.Core.csproj" Condition="'$(CoreVersion)' == ''" />
+    <!-- Use PackageReference when deployment pipeline sets UsePackageReference=true -->
+    <PackageReference Include="DbReactor.Core" Version="[$(MinCoreVersion), $(MaxCoreVersion))" Condition="'$(UsePackageReference)' == 'true'" />
+    <!-- Use ProjectReference for local development (default) -->
+    <ProjectReference Include="..\DbReactor.Core\DbReactor.Core.csproj" Condition="'$(UsePackageReference)' != 'true'" />
   </ItemGroup>
 
   <ItemGroup>

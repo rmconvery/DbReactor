@@ -1,0 +1,135 @@
+name: Publish DbReactor.Core to NuGet
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Core version to publish (e.g., 1.1.1)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Is this a prerelease?'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: write
+  actions: read
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  CONFIGURATION: Release
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Restore dependencies
+      run: dotnet restore DbReactor.Core/DbReactor.Core.csproj
+    
+    - name: Build solution
+      run: dotnet build --configuration ${{ env.CONFIGURATION }} --no-restore
+    
+    - name: Run tests
+      run: dotnet test --configuration ${{ env.CONFIGURATION }} --no-build --verbosity normal --logger trx --results-directory "TestResults"
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: TestResults/*.trx
+
+  publish-core:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: success()
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Needed for GitVersion
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Update project version
+      run: |
+        # Update version in project file
+        sed -i "s/<Version>.*<\/Version>/<Version>${{ github.event.inputs.version }}<\/Version>/" DbReactor.Core/DbReactor.Core.csproj
+        sed -i "s/<AssemblyVersion>.*<\/AssemblyVersion>/<AssemblyVersion>${{ github.event.inputs.version }}.0<\/AssemblyVersion>/" DbReactor.Core/DbReactor.Core.csproj
+        sed -i "s/<FileVersion>.*<\/FileVersion>/<FileVersion>${{ github.event.inputs.version }}.0<\/FileVersion>/" DbReactor.Core/DbReactor.Core.csproj
+    
+    - name: Restore dependencies
+      run: dotnet restore DbReactor.Core/DbReactor.Core.csproj
+    
+    - name: Build project
+      run: dotnet build DbReactor.Core/DbReactor.Core.csproj --configuration ${{ env.CONFIGURATION }} --no-restore
+    
+    - name: Create NuGet package
+      run: dotnet pack DbReactor.Core/DbReactor.Core.csproj --configuration ${{ env.CONFIGURATION }} --no-build --output ./nupkg
+    
+    - name: Upload packages as artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: nuget-packages-core
+        path: ./nupkg/*.nupkg
+    
+    - name: Publish to NuGet.org
+      run: dotnet nuget push "./nupkg/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+      if: github.event.inputs.prerelease == 'false'
+    
+    - name: Publish to NuGet.org (Prerelease)
+      run: dotnet nuget push "./nupkg/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+      if: github.event.inputs.prerelease == 'true'
+
+  create-github-release:
+    runs-on: ubuntu-latest
+    needs: publish-core
+    if: success()
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./artifacts
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v${{ github.event.inputs.version }}-core
+        name: DbReactor.Core v${{ github.event.inputs.version }}
+        body: |
+          ## DbReactor.Core v${{ github.event.inputs.version }}
+          
+          ### Package Published
+          - DbReactor.Core v${{ github.event.inputs.version }}
+          
+          ### Installation
+          ```bash
+          dotnet add package DbReactor.Core --version ${{ github.event.inputs.version }}
+          ```
+          
+          For release notes and changes, see the documentation.
+        files: |
+          ./artifacts/**/*.nupkg
+        prerelease: ${{ github.event.inputs.prerelease }}
+        draft: false
+        fail_on_unmatched_files: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
