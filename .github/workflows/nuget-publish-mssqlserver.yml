@@ -33,24 +33,23 @@ env:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
-    
+
     - name: Restore dependencies
       run: dotnet restore
-    
+
     - name: Build solution
       run: dotnet build --configuration ${{ env.CONFIGURATION }} --no-restore
-    
     - name: Run tests
       run: dotnet test --configuration ${{ env.CONFIGURATION }} --no-build --verbosity normal --logger trx --results-directory "TestResults"
-    
+
     - name: Upload test results
       uses: actions/upload-artifact@v4
       if: always()
@@ -62,17 +61,17 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-and-test
     if: success()
-    
+
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # Needed for GitVersion
-    
+        fetch-depth: 0
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
-    
+
     - name: Set version variables
       id: version
       run: |
@@ -82,78 +81,75 @@ jobs:
         echo "PRERELEASE=${{ github.event.inputs.prerelease }}" >> $GITHUB_OUTPUT
         echo "Publishing MSSqlServer version: ${{ github.event.inputs.mssqlserver_version }}"
         echo "Core dependency range: [${{ github.event.inputs.min_core_version }}, ${{ github.event.inputs.max_core_version }})"
-    
+
     - name: Update project version
       run: |
-        # Update MSSqlServer version
         sed -i "s/<Version>.*<\/Version>/<Version>${{ steps.version.outputs.MSSQLSERVER_VERSION }}<\/Version>/" DbReactor.MSSqlServer/DbReactor.MSSqlServer.csproj
         sed -i "s/<AssemblyVersion>.*<\/AssemblyVersion>/<AssemblyVersion>${{ steps.version.outputs.MSSQLSERVER_VERSION }}.0<\/AssemblyVersion>/" DbReactor.MSSqlServer/DbReactor.MSSqlServer.csproj
         sed -i "s/<FileVersion>.*<\/FileVersion>/<FileVersion>${{ steps.version.outputs.MSSQLSERVER_VERSION }}.0<\/FileVersion>/" DbReactor.MSSqlServer/DbReactor.MSSqlServer.csproj
-    
+
     - name: Restore dependencies
       run: dotnet restore
-    
+
     - name: Build project
       run: |
-        # Build with package reference and Core version range parameters
         dotnet build DbReactor.MSSqlServer/DbReactor.MSSqlServer.csproj --configuration ${{ env.CONFIGURATION }} --no-restore \
           -p:UsePackageReference=true \
           -p:MinCoreVersion=${{ steps.version.outputs.MIN_CORE_VERSION }} \
           -p:MaxCoreVersion=${{ steps.version.outputs.MAX_CORE_VERSION }}
-    
+
     - name: Create NuGet package
       run: |
-        # Pack with package reference and Core version range parameters
         dotnet pack DbReactor.MSSqlServer/DbReactor.MSSqlServer.csproj --configuration ${{ env.CONFIGURATION }} --no-build --output ./nupkg \
           -p:UsePackageReference=true \
           -p:MinCoreVersion=${{ steps.version.outputs.MIN_CORE_VERSION }} \
           -p:MaxCoreVersion=${{ steps.version.outputs.MAX_CORE_VERSION }}
-    
+
     - name: Upload packages as artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: nuget-packages-${{ matrix.project.name }}
+        name: nuget-packages
         path: ./nupkg/*.nupkg
-    
+
     - name: Publish to NuGet.org
+      if: ${{ steps.version.outputs.PRERELEASE == 'false' }}
       run: dotnet nuget push "./nupkg/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
-      if: steps.version.outputs.PRERELEASE == 'false'
-    
+
     - name: Publish to NuGet.org (Prerelease)
+      if: ${{ steps.version.outputs.PRERELEASE == 'true' }}
       run: dotnet nuget push "./nupkg/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
-      if: steps.version.outputs.PRERELEASE == 'true'
 
   create-github-release:
     runs-on: ubuntu-latest
-    needs: publish-nuget
+    needs: publish-mssqlserver
     if: github.event_name == 'workflow_dispatch' && success()
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Download all artifacts
       uses: actions/download-artifact@v4
       with:
         path: ./artifacts
-    
+
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v${{ github.event.inputs.version }}
-        name: Release v${{ github.event.inputs.version }}
+        tag_name: v${{ github.event.inputs.mssqlserver_version }}
+        name: Release v${{ github.event.inputs.mssqlserver_version }}
         body: |
-          ## DbReactor v${{ github.event.inputs.version }}
-          
+          ## DbReactor v${{ github.event.inputs.mssqlserver_version }}
+
           ### Packages Published
-          - DbReactor.Core v${{ github.event.inputs.version }}
-          - DbReactor.MSSqlServer v${{ github.event.inputs.version }}
-          
+          - DbReactor.Core v${{ github.event.inputs.mssqlserver_version }}
+          - DbReactor.MSSqlServer v${{ github.event.inputs.mssqlserver_version }}
+
           ### Installation
           ```bash
-          dotnet add package DbReactor.Core --version ${{ github.event.inputs.version }}
-          dotnet add package DbReactor.MSSqlServer --version ${{ github.event.inputs.version }}
+          dotnet add package DbReactor.Core --version ${{ github.event.inputs.mssqlserver_version }}
+          dotnet add package DbReactor.MSSqlServer --version ${{ github.event.inputs.mssqlserver_version }}
           ```
-          
+
           For release notes and changes, see the documentation.
         files: |
           ./artifacts/**/*.nupkg
