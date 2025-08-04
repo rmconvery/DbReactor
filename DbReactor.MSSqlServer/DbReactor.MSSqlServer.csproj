@@ -62,5 +62,4 @@
     <!-- Include LICENSE in package -->
     <None Include="..\LICENSE" Pack="true" PackagePath="\" />
   </ItemGroup>
-
 </Project>
