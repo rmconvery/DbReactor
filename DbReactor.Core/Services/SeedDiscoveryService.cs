@@ -16,6 +16,7 @@ namespace DbReactor.Core.Services
     public class SeedDiscoveryService
     {
         private readonly IEnumerable<IScriptProvider> _scriptProviders;
+        private readonly IEnumerable<ISeedScriptProvider> _seedProviders;
         private readonly IEnumerable<ISeedStrategyResolver> _strategyResolvers;
         private readonly ISeedExecutionStrategy _globalStrategy;
         private readonly ISeedExecutionStrategy _fallbackStrategy;
@@ -23,7 +24,7 @@ namespace DbReactor.Core.Services
         /// <summary>
         /// Initializes a new instance of SeedDiscoveryService
         /// </summary>
-        /// <param name="scriptProviders">Script providers to use for seed discovery</param>
+        /// <param name="scriptProviders">Script providers to use for seed discovery (legacy path)</param>
         /// <param name="strategyResolvers">Strategy resolvers for per-seed strategy determination</param>
         /// <param name="globalStrategy">Global strategy to apply to all seeds (overrides per-seed strategies)</param>
         /// <param name="fallbackStrategy">Fallback strategy when no other strategy can be determined</param>
@@ -34,6 +35,29 @@ namespace DbReactor.Core.Services
             ISeedExecutionStrategy fallbackStrategy = null)
         {
             _scriptProviders = scriptProviders ?? throw new ArgumentNullException(nameof(scriptProviders));
+            _seedProviders = Enumerable.Empty<ISeedScriptProvider>();
+            _strategyResolvers = strategyResolvers ?? Enumerable.Empty<ISeedStrategyResolver>();
+            _globalStrategy = globalStrategy;
+            _fallbackStrategy = fallbackStrategy ?? new RunOnceSeedStrategy();
+        }
+
+        /// <summary>
+        /// Initializes a new instance of SeedDiscoveryService with new seed providers
+        /// </summary>
+        /// <param name="seedProviders">Seed providers that resolve strategy at discovery time</param>
+        /// <param name="scriptProviders">Legacy script providers (strategy resolved here)</param>
+        /// <param name="strategyResolvers">Strategy resolvers for legacy script providers</param>
+        /// <param name="globalStrategy">Global strategy to apply to all seeds (overrides per-seed strategies)</param>
+        /// <param name="fallbackStrategy">Fallback strategy when no other strategy can be determined</param>
+        public SeedDiscoveryService(
+            IEnumerable<ISeedScriptProvider> seedProviders,
+            IEnumerable<IScriptProvider> scriptProviders = null,
+            IEnumerable<ISeedStrategyResolver> strategyResolvers = null,
+            ISeedExecutionStrategy globalStrategy = null,
+            ISeedExecutionStrategy fallbackStrategy = null)
+        {
+            _seedProviders = seedProviders ?? Enumerable.Empty<ISeedScriptProvider>();
+            _scriptProviders = scriptProviders ?? Enumerable.Empty<IScriptProvider>();
             _strategyResolvers = strategyResolvers ?? Enumerable.Empty<ISeedStrategyResolver>();
             _globalStrategy = globalStrategy;
             _fallbackStrategy = fallbackStrategy ?? new RunOnceSeedStrategy();
@@ -46,20 +70,39 @@ namespace DbReactor.Core.Services
         /// <returns>Collection of seeds</returns>
         public async Task<IEnumerable<ISeed>> GetSeedsAsync(CancellationToken cancellationToken = default)
         {
-            var allScripts = new List<IScript>();
-            
+            var allSeeds = new List<ISeed>();
+
+            // New path: ISeedScriptProvider returns seeds with strategy already resolved
+            foreach (var seedProvider in _seedProviders)
+            {
+                var seeds = await seedProvider.GetSeedsAsync(cancellationToken);
+
+                // Global strategy overrides per-seed strategies for consistency with legacy path
+                if (_globalStrategy != null)
+                {
+                    allSeeds.AddRange(seeds.Select(s => new Seed(s.Name, s.Script, _globalStrategy, s.Hash)));
+                }
+                else
+                {
+                    allSeeds.AddRange(seeds);
+                }
+            }
+
+            // Legacy path: IScriptProvider returns raw scripts, strategy resolved here
+            // [Obsolete] Prefer ISeedScriptProvider for correct folder-based strategy resolution
             foreach (var provider in _scriptProviders)
             {
                 var scripts = await provider.GetScriptsAsync(cancellationToken);
-                allScripts.AddRange(scripts);
+                var seeds = scripts.Select(script => new Seed(
+                    script.Name,
+                    script,
+                    DetermineStrategy(script, script.Name),
+                    script.Hash
+                ));
+                allSeeds.AddRange(seeds);
             }
 
-            return allScripts.Select(script => new Seed(
-                script.Name,
-                script,
-                DetermineStrategy(script, script.Name),
-                script.Hash
-            ));
+            return allSeeds;
         }
 
         /// <summary>
