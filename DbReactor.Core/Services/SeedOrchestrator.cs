@@ -82,6 +82,12 @@ namespace DbReactor.Core.Services
                     return result;
                 }
 
+                // Sort by strategy priority: RunOnce (1) → RunIfChanged (2) → RunAlways (3)
+                // Stable sort preserves discovery order within same priority
+                seedsToExecute = seedsToExecute
+                    .OrderBy(s => SeedStrategyPriority.GetPriority(s.Strategy.Name))
+                    .ToList();
+
                 _configuration.LogProvider?.WriteInformation($"Found {seedsToExecute.Count} seed(s) to execute.");
 
                 // Execute each seed
@@ -141,13 +147,18 @@ namespace DbReactor.Core.Services
                     return result;
                 }
 
+                // Sort by strategy priority to match execution order: RunOnce (1) → RunIfChanged (2) → RunAlways (3)
+                // Stable sort preserves discovery order within same priority
+                var orderedSeeds = seeds
+                    .OrderBy(s => SeedStrategyPriority.GetPriority(s.Strategy.Name));
+
                 if (!databaseExists)
                 {
-                    await HandleNonExistentDatabasePreview(result, seeds);
+                    await HandleNonExistentDatabasePreview(result, orderedSeeds);
                 }
                 else
                 {
-                    await HandleExistingDatabasePreview(result, seeds, cancellationToken);
+                    await HandleExistingDatabasePreview(result, orderedSeeds, cancellationToken);
                 }
 
                 _configuration.LogProvider?.WriteInformation($"Seed preview completed. {result.Summary}");

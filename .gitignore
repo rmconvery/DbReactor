@@ -10,6 +10,16 @@
 *.userosscache
 *.sln.docstates
 
+# AI Related
+*.github/agents
+*.github/docs
+*.github/agents
+*.github/instructions
+*.github/plans
+*.github/skills
+*.github/AGENTS.md
+*.github/copilot-instructions.md
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 

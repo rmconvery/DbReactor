@@ -314,7 +314,13 @@ var config = new DbReactorConfiguration()
 
 ### Seeding Strategies
 
-Seeds use execution strategies to determine when they should run:
+Seeds use execution strategies to determine when they should run. The `SeedOrchestrator` executes seeds in a fixed priority order:
+
+1. **RunOnce** (priority 1) — Initial data setup. Executes first because other seeds may depend on this base data.
+2. **RunIfChanged** (priority 2) — Conditional updates. Executes second because it assumes base data exists.
+3. **RunAlways** (priority 3) — Refresh/recalculation. Executes last because it operates on fully-established state.
+
+Within the same priority level, seeds execute in discovery order (alphabetical by name).
 
 #### RunOnce (Default)
 Executes only once, tracked in the seed journal:

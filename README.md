@@ -186,7 +186,7 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-[Your License Here]
+MIT
 
 ---
 
