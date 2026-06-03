@@ -1,5 +1,6 @@
 using DbReactor.Core.Configuration;
 using DbReactor.Core.Extensions;
+using DbReactor.Core.Logging;
 using DbReactor.Core.Seeding.Strategies;
 using DbReactor.MSSqlServer.Constants;
 using DbReactor.MSSqlServer.Execution;
@@ -59,7 +60,7 @@ namespace DbReactor.MSSqlServer.Extensions
         /// <returns>The configuration for method chaining</returns>
         public static DbReactorConfiguration UseSqlServerExecutor(this DbReactorConfiguration config, TimeSpan? commandTimeout = null)
         {
-            config.ScriptExecutor = new SqlServerScriptExecutor(commandTimeout ?? SqlServerConstants.Defaults.CommandTimeout);
+            config.ScriptExecutor = new SqlServerScriptExecutor(commandTimeout ?? SqlServerConstants.Defaults.CommandTimeout, () => config.LogProvider ?? new NullLogProvider());
             return config;
         }
 
@@ -102,7 +103,7 @@ namespace DbReactor.MSSqlServer.Extensions
         public static DbReactorConfiguration UseSqlServerCommandTimeout(this DbReactorConfiguration config, TimeSpan timeout)
         {
             // Update the existing executor with the new timeout
-            config.ScriptExecutor = new SqlServerScriptExecutor(timeout);
+            config.ScriptExecutor = new SqlServerScriptExecutor(timeout, config.LogProvider);
             return config;
         }
 
