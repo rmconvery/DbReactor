@@ -207,5 +207,23 @@ namespace DbReactor.Core.Utilities
             
             return namespacePath.Substring(lastDotIndex + 1);
         }
+
+        /// <summary>
+        /// Returns the leaf segment of a namespace-style resource name,
+        /// after stripping known script extensions (.sql).
+        /// Suitable for log output and display purposes.
+        /// </summary>
+        public static string GetLeafName(string resourceName)
+        {
+            if (string.IsNullOrEmpty(resourceName))
+                return string.Empty;
+
+            var name = resourceName;
+            if (name.EndsWith(".sql", StringComparison.OrdinalIgnoreCase))
+                name = name.Substring(0, name.Length - 4);
+
+            int lastDot = name.LastIndexOf('.');
+            return lastDot >= 0 ? name.Substring(lastDot + 1) : name;
+        }
     }
 }

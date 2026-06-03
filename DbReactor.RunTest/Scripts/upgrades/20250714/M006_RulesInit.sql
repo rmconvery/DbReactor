@@ -1,3 +1,6 @@
+PRINT 'Creating rules schema and tables...'
+GO
+
 IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
 BEGIN
     CREATE TABLE [__EFMigrationsHistory] (

@@ -1,6 +1,8 @@
 -- Maintenance script that runs every time
 -- Uses folder structure to determine strategy (run-always)
 
+PRINT 'DbReactor: Starting statistics update...'
+
 -- Update table statistics
 UPDATE STATISTICS Users
 UPDATE STATISTICS Products  
@@ -15,3 +17,5 @@ BEGIN
     -- Additional maintenance for production environments
     PRINT 'Production maintenance completed'
 END
+
+PRINT 'DbReactor: Statistics update complete.'

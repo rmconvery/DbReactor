@@ -1,6 +1,8 @@
 using DbReactor.Core.Abstractions;
 using DbReactor.Core.Execution;
+using DbReactor.Core.Logging;
 using DbReactor.Core.Models;
+using DbReactor.Core.Utilities;
 using DbReactor.MSSqlServer.Constants;
 using DbReactor.MSSqlServer.Utilities;
 using Microsoft.Data.SqlClient;
@@ -17,12 +19,19 @@ namespace DbReactor.MSSqlServer.Execution
     public class SqlServerScriptExecutor : IScriptExecutor
     {
         private readonly TimeSpan _commandTimeout;
+        private readonly Func<ILogProvider> _logProviderFactory;
 
-        public SqlServerScriptExecutor() : this(SqlServerConstants.Defaults.CommandTimeout) { }
+        public SqlServerScriptExecutor() : this(SqlServerConstants.Defaults.CommandTimeout, (ILogProvider)null) { }
 
-        public SqlServerScriptExecutor(TimeSpan commandTimeout)
+        public SqlServerScriptExecutor(TimeSpan commandTimeout) : this(commandTimeout, (ILogProvider)null) { }
+
+        public SqlServerScriptExecutor(TimeSpan commandTimeout, ILogProvider logProvider)
+            : this(commandTimeout, logProvider != null ? (Func<ILogProvider>)(() => logProvider) : null) { }
+
+        public SqlServerScriptExecutor(TimeSpan commandTimeout, Func<ILogProvider> logProviderFactory)
         {
             _commandTimeout = commandTimeout;
+            _logProviderFactory = logProviderFactory ?? (() => new NullLogProvider());
         }
 
         public async Task<MigrationResult> ExecuteAsync(IScript script, IConnectionManager connectionManager, CancellationToken cancellationToken = default)
@@ -72,7 +81,7 @@ namespace DbReactor.MSSqlServer.Execution
             if (SqlUtilities.IsEfTransactionScript(scriptContent))
             {
                 string scriptWithoutGo = SqlUtilities.RemoveGoStatements(scriptContent);
-                await ExecuteNonQueryAsync(scriptWithoutGo, connectionManager, cancellationToken);
+                await ExecuteNonQueryAsync(scriptWithoutGo, connectionManager, PathUtility.GetLeafName(script.Name), cancellationToken);
                 return;
             }
 
@@ -82,36 +91,72 @@ namespace DbReactor.MSSqlServer.Execution
             await connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
             {
                 SqlConnection sqlConnection = (SqlConnection)connection;
-                if (hasManualTransactions)
+                sqlConnection.FireInfoMessageEventOnUserErrors = true;
+                string shortName = PathUtility.GetLeafName(script.Name);
+                SqlInfoMessageEventHandler infoHandler = (sender, e) =>
                 {
-                    await ExecuteBatchesAsync(batches, sqlConnection, null, cancellationToken);
+                    ILogProvider logProvider = _logProviderFactory();
+                    foreach (SqlError error in e.Errors)
+                    {
+                        logProvider.WriteInformation($"[{shortName}] {error.Message}");
+                    }
+                };
+                sqlConnection.InfoMessage += infoHandler;
+                try
+                {
+                    if (hasManualTransactions)
+                    {
+                        await ExecuteBatchesAsync(batches, sqlConnection, null, cancellationToken);
+                    }
+                    else
+                    {
+                        using SqlTransaction transaction = sqlConnection.BeginTransaction();
+                        try
+                        {
+                            await ExecuteBatchesAsync(batches, sqlConnection, transaction, cancellationToken);
+                            transaction.Commit();
+                        }
+                        catch
+                        {
+                            try { transaction.Rollback(); } catch { }
+                            throw;
+                        }
+                    }
                 }
-                else
+                finally
                 {
-                    using SqlTransaction transaction = sqlConnection.BeginTransaction();
-                    try
-                    {
-                        await ExecuteBatchesAsync(batches, sqlConnection, transaction, cancellationToken);
-                        transaction.Commit();
-                    }
-                    catch
-                    {
-                        try { transaction.Rollback(); } catch { }
-                        throw;
-                    }
+                    sqlConnection.InfoMessage -= infoHandler;
                 }
             }, cancellationToken);
         }
 
-        private async Task ExecuteNonQueryAsync(string sql, IConnectionManager connectionManager, CancellationToken cancellationToken)
+        private async Task ExecuteNonQueryAsync(string sql, IConnectionManager connectionManager, string scriptName, CancellationToken cancellationToken)
         {
             await connectionManager.ExecuteWithManagedConnectionAsync(async connection =>
             {
-                using SqlCommand command = new SqlCommand(sql, (SqlConnection)connection)
+                SqlConnection sqlConnection = (SqlConnection)connection;
+                sqlConnection.FireInfoMessageEventOnUserErrors = true;
+                SqlInfoMessageEventHandler infoHandler = (sender, e) =>
                 {
-                    CommandTimeout = (int)_commandTimeout.TotalSeconds
+                    ILogProvider logProvider = _logProviderFactory();
+                    foreach (SqlError error in e.Errors)
+                    {
+                        logProvider.WriteInformation($"[{scriptName}] {error.Message}");
+                    }
                 };
-                await command.ExecuteNonQueryAsync(cancellationToken);
+                sqlConnection.InfoMessage += infoHandler;
+                try
+                {
+                    using SqlCommand command = new SqlCommand(sql, sqlConnection)
+                    {
+                        CommandTimeout = (int)_commandTimeout.TotalSeconds
+                    };
+                    await command.ExecuteNonQueryAsync(cancellationToken);
+                }
+                finally
+                {
+                    sqlConnection.InfoMessage -= infoHandler;
+                }
             }, cancellationToken);
         }
 

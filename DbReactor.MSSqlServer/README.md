@@ -534,6 +534,55 @@ var connectionString = "Server=localhost;Database=MyApp;Integrated Security=true
 var connectionString = "Server=localhost;Database=MyApp;User Id=dbuser;Password=password;MultipleActiveResultSets=true;";
 ```
 
+## Script Output Logging
+
+SQL Server `PRINT` statements and low-severity `RAISERROR` messages (severity 0-10) from your scripts are automatically captured and routed through the configured `ILogProvider` during execution.
+
+This allows you to add diagnostic output to your migration and seed scripts:
+
+```sql
+-- In your migration or seed script
+PRINT 'Creating rules schema and tables...'
+
+CREATE SCHEMA [rules];
+CREATE TABLE [rules].[RuleSets] (
+    RuleSetId INT PRIMARY KEY IDENTITY(1,1),
+    Name NVARCHAR(100) NOT NULL
+);
+
+PRINT 'Rules schema created successfully'
+```
+
+When using `UseConsoleLogging()`, this produces:
+
+```
+[INFO] 2026-06-03 09:58:03 - Creating rules schema and tables...
+[INFO] 2026-06-03 09:58:03 - Successfully executed script: M006_RulesInit
+[INFO] 2026-06-03 09:58:03 - Rules schema created successfully
+```
+
+### Requirements
+
+- Configure a log provider (e.g., `.UseConsoleLogging()`) in your `DbReactorConfiguration`
+- No additional configuration needed — output capture is automatic when a log provider is configured
+
+### Custom Log Provider
+
+Implement `ILogProvider` to route script output to your preferred logging framework:
+
+```csharp
+public class SerilogProvider : ILogProvider
+{
+    public void WriteInformation(string message) => Log.Information(message);
+    public void WriteError(string message) => Log.Error(message);
+    public void WriteWarning(string message) => Log.Warning(message);
+}
+
+var config = new DbReactorConfiguration()
+    .UseSqlServer(connectionString)
+    .UseLogProvider(new SerilogProvider());
+```
+
 ## Best Practices
 
 1. **Use Transactions**: Each migration runs in its own transaction
